@@ -1,4 +1,4 @@
-# `easyPyPI` (Pronunced "Easy-Pie-Pea_Eye")
+# `easyPyPI` (Pronunced "Easy Pie-Pea-Eye")
 - Want to share your Python script(s)  so others can simply `pip install yourscript`?
 - Daunted by the numerous/tedious tutorials for `distutils`, `setuptools` and the [Python Package Index](https://pypi.org/) (**PyPI**)?
 
