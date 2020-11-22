@@ -1,4 +1,4 @@
-# `easyPyPI`
+# `easyPyPI` (Pronunced "Easy-Pie-Pea_Eye")
 - Want to share your Python script(s)  so others can simply `pip install yourscript`?
 - Daunted by the numerous/tedious tutorials for `distutils`, `setuptools` and the [Python Package Index](https://pypi.org/) (**PyPI**)?
 
@@ -25,7 +25,9 @@ With `easyPyPI` you no longer have to:
 - Install and run `twine` to upload your distribution file to **Test PyPI** / **PyPI**
 - Remember to delete old distribution files
 
+As easy as pie (PI)!
+
 ![After](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
 
-*FOOTNOTE: It took me 3 years to realise I was pronouncing **PyPI** wrong!  It's as easy as: "Pie-Pea-Eye" in case you didn't know.  And why should you?*
+
 
