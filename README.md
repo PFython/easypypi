@@ -26,7 +26,7 @@ With `easyPyPI` you no longer have to:
 - Install and run `twine` to upload your distribution file to **Test PyPI** / **PyPI**
 - Remember to delete old distribution files
 
-As easy as pie (PI)!
+`easyPyPI` - It's as easy as pie (PI)!
 
 ![After](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
 
