@@ -1,11 +1,13 @@
 # `easypypi`
-- Want to share your Python script(s) on the [Python Package Index](https://pypi.org/) (PyPI*) so others can simply `pip install yourscript`?
-- Daunted by the numerous and sometimes conflicting tutorials online for `distutils` and `setuptools` etc?
+- Want to share your Python script(s)  so others can simply `pip install yourscript`?
+- Daunted by the numerous and sometimes conflicting tutorials online for `distutils`, `setuptools` and the [Python Package Index](https://pypi.org/) (PyPI\*)?
 
-`easypypi` is a simple, one-size-fits-all solution that caters for 87.3% of use cases (*Ed - really?!!*).  It's aimed at Pythonistas who've never published to PyPI or have, but loathed the experience.  Just install `easypypi`, run it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
+`easypypi` is a simple, one-size-fits-all solution that caters for 87.3% of use cases (*Ed - really?!!*).  It's aimed at Pythonistas who've never published to PyPI or have, but thought "There *must* be an easier way than this".  Well now there is!  Just install `easypypi`, import it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
 
     pip install easypypi
-    python -m easypypi.py
+    
+    >>> import easypypi
+    
     
 - It creates a simple folder structure and moves your script there.
 - It creates a skeleton README.md
