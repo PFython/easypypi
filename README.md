@@ -15,14 +15,14 @@ Well now there is.  Just install `easyPyPI`, import it, and follow the prompts. 
     
 With `easyPyPI` you no longer have to:
 
-- Manually create a folder structure and move your script there.
+- Manually create a folder structure and move your script(s) there.
 - Manually create a skeleton `README.md`
 - Manually create a skeleton `__init__.py`
 - Manually create a skeleton `test_yourscript.py`
-- Manually create a `LICENSE` using the Github Licenses API
-- Manually create `setup.py` file based
+- Manually create a `LICENSE`
+- Manually create `setup.py` and wonder what on earth to put in it
 - Remember to update your Version number each time
-- Run `setup.py` in the recommended way to create a distribution file
+- Run `setup.py` in just the right way to create a distribution file
 - Install and run `twine` to upload your distribution file to **Test PyPI** / **PyPI**
 - Remember to delete old distribution files
 
