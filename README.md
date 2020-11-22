@@ -23,7 +23,7 @@ With `easyPyPI` you no longer have to:
 - Manually create `setup.py` and wonder what on earth to put in it
 - Remember to update your Version number each time
 - Run `setup.py` in just the right way to create a distribution file
-- Install and run `twine` to upload your distribution file to **Test PyPI** / **PyPI**
+- Install and run `twine` in just the right way to upload your package to **Test PyPI** / **PyPI**
 - Remember to delete old distribution files
 
 `easyPyPI` - It's as easy as pie (PI)!
