@@ -16,8 +16,9 @@ You no longer have to:
 
 - Create a folder structure and move your script there.
 - Create a skeleton `README.md`
+- Create a skeleton `__init__.py`
 - Create a skeleton `test_yourscript.py`
-- Ceate a `LICENSE` using the Github Licenses API
+- Create a `LICENSE` using the Github Licenses API
 - Create a `setup.py` file based on simple prompts, and remember to update your Version number
 - Run `setup.py` to create a distribution file
 - Install and run `twine` to upload your distribution file to **Test PyPI** / **PyPI**
