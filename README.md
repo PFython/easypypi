@@ -4,6 +4,8 @@
 
 `easypypi` is a simple, one-size-fits-all solution that caters for 87.3% of use cases (*Ed - really?!!*).  It's aimed at Pythonistas who've never published to PyPI or have, but thought "There *must* be an easier way than this!".
 
+![Before](https://media.giphy.com/media/XIqCQx02E1U9W/giphy.gif)
+
 Well now there is  Just install `easypypi`, import it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
 
     pip install easypypi
@@ -20,11 +22,7 @@ Well now there is  Just install `easypypi`, import it, and follow the prompts.  
 - It uses the excellent PySimpleGui package for easy input.
 - It really is as easy as pie (PI)!
 
-### Before `easypypi` 
-![Before](https://media.giphy.com/media/XIqCQx02E1U9W/giphy.gif)
-
-### After `easypypi` 
-![Before](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
+![After](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
 
 *FOOTNOTE: It took me 3 years to realise I was pronouncing PyPI wrong!  "Pie-Pea-Eye" in case you didn't know.  And why should you?*
 
