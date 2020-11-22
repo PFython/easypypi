@@ -1,6 +1,7 @@
 # `easyPyPI` (Pronounced "Easy Pie-Pea-Eye")
-- Want to share your Python script(s)  so others can simply `pip install yourscript`?
-- Daunted by the numerous/tedious tutorials for `distutils`, `setuptools` and the [Python Package Index](https://pypi.org/) (**PyPI**)?
+> Want to share your Python script(s)  so others can simply `pip install yourscript`?
+
+> Daunted by the numerous/tedious tutorials for `distutils`, `setuptools` and the [Python Package Index](https://pypi.org/) (**PyPI**)?
 
 `easyPyPI` is a simple, one-size-fits-all solution that caters for 87.3% of use cases (*Ed - really?!!*).  It's aimed at Pythonistas who've never published to **PyPI** or have, but thought "There *must* be an easier way than this!".
 
