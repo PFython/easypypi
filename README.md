@@ -6,7 +6,7 @@
 
 ![Before](https://media.giphy.com/media/XIqCQx02E1U9W/giphy.gif)
 
-Well now there is  Just install `easypypi`, import it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
+Well now there is.  Just install `easypypi`, import it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
 
     pip install easypypi
     
