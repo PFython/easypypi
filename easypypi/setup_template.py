@@ -2,20 +2,27 @@ import pathlib
 from setuptools import setup, find_packages
 
 HERE = pathlib.Path(__file__).parent
-NAME = ""
+PACKAGE_NAME = ""
 GITHUB_ID = ""
 VERSION = 0
 DESCRIPTION = ""
 LICENSE = ""
 AUTHOR = ""
 EMAIL = ""
-KEYWORDS = []
-CLASSIFIERS = []
 URL = ""
-REQUIREMENTS = []
+KEYWORDS = ""
+CLASSIFIERS = ""
+REQUIREMENTS = ""
+
+def comma_split(text: str):
+    """
+    Returns a list of strings after splitting original string by commas
+    Applied to KEYWORDS, CLASSIFIERS, and REQUIREMENTS
+    """
+    return [x.strip() for x in text.split(",")]
 
 if __name__ == "__main__":
-    setup(name = NAME,
+    setup(name = PACKAGE_NAME,
         packages = find_packages(),
         version = VERSION,
         license=LICENSE,
@@ -26,9 +33,9 @@ if __name__ == "__main__":
         author_email = EMAIL,
         url = URL,
         download_url = f'{URL}/archive/{VERSION}.tar.gz',
-        keywords = [x.strip() for x in KEYWORDS.split(",")],
-        install_requires = [x.strip() for x in REQUIREMENTS.split(",")],
-        classifiers = CLASSIFIERS,)
+        keywords = comma_split(KEYWORDS),
+        install_requires = comma_split(REQUIREMENTS),
+        classifiers = comma_split(CLASSIFIERS),)
 
 
 

@@ -2,7 +2,7 @@ import pathlib
 from setuptools import setup, find_packages
 
 HERE = pathlib.Path(__file__).parent
-NAME = ""
+PACKAGE_NAME = ""
 GITHUB_ID = ""
 VERSION = 0
 DESCRIPTION = ""
@@ -15,7 +15,7 @@ URL = ""
 REQUIREMENTS = []
 
 if __name__ == "__main__":
-    setup(name = NAME,
+    setup(name = PACKAGE_NAME,
         packages = find_packages(),
         version = VERSION,
         license=LICENSE,

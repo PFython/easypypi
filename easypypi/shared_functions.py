@@ -9,8 +9,12 @@ from pathlib import Path
 from decimal import Decimal as decimal
 import PySimpleGUI as sg
 
-def create_file(filepath, content: list):
-    """Create a backup if required, then create new file"""
+def create_file(filepath, content):
+    """
+    Create a backup if required, then create new file using writelines
+    """
+    if type(content) == str:
+        content = content.splitlines()
     if filepath.is_file():
         backup = filepath.with_name(filepath.stem + "- old.py")
         if backup.is_file():
@@ -22,11 +26,13 @@ def create_file(filepath, content: list):
         file.writelines(content)
         print(f"Created new file {filepath}")
 
-def replace(script, old_line_starts, new_line):
+def update_line(script, old_line_starts, new_line):
     """ Updates and returns, ready for writing to setup.py """
     for index, line in enumerate(script.copy()):
         if line.lstrip().startswith(old_line_starts):
-            script[index] = new_line
-            print(f"Updated setup.py line {index+1}:\n{new_line[:500]}")
-            break  # only replace first occurrence
+            if not new_line.startswith("["):
+                new_line = f'"{new_line}"'
+            script[index] = old_line_starts + new_line +"\n"
+            print(f"Updated script line {index+1}:\n{script[index][:500]}")
+            break  # only update first occurrence
     return script
