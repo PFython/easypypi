@@ -1,27 +1,27 @@
-from pprint import pprint
-import os
-import datetime
-import requests
-import webbrowser
-from cleverdict import CleverDict
-import json
-from pathlib import Path
-from decimal import Decimal as decimal
-import PySimpleGUI as sg
+"""
+Functions shared by easypypi.py and licenses.py
+"""
 
-def create_file(filepath, content):
+import os
+
+def create_file(filepath, content, **kwargs):
     """
     Create a backup if required, then create new file using writelines
+    Returns "file exists" if filepath already exists and overwrite = False
     """
     if type(content) == str:
         content = content.splitlines()
     if filepath.is_file():
-        backup = filepath.with_name(filepath.stem + "- old.py")
-        if backup.is_file():
-            os.remove(backup)
-        filepath.rename(backup)
-        print(f"Renamed {filepath.name} to {backup.name}")
-    filepath.touch()
+        if kwargs.get("overwrite"):
+            backup = filepath.with_name(filepath.stem + " - old.py")
+            if backup.is_file():
+                os.remove(backup)
+            filepath.rename(backup)
+            print(f"Renamed {filepath.name} to {backup.name}")
+            filepath.touch()  # Create empty file to append lines to
+        else:
+            print(f"Existing file preserved: {filepath}")
+            return "file exists"
     with open(filepath, "a") as file:
         file.writelines(content)
         print(f"Created new file {filepath}")

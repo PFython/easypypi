@@ -26,7 +26,6 @@ With `easyPyPI` you don't have to waste your time (as I did...):
 - Remembering to update your Version number each time
 - Running `setup.py` in just the right way to create your distribution files
 - Installing and running `twine` in just the right way to upload your package to **Test PyPI** / **PyPI**
-- Remembering to delete old distribution files
 
 Enjoy!
 
