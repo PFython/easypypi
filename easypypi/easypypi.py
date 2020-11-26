@@ -1,5 +1,6 @@
 from pprint import pprint
 import os
+print(__file__)
 import datetime
 import requests
 import webbrowser

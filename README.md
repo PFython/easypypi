@@ -29,7 +29,12 @@ With `easyPyPI` you don't have to waste your time (as I did...):
 
 Enjoy!
 
+
 ![After](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
 
+
+And and if you find `easypypi` helpful, please feel free to:
+
+<a href="https://www.buymeacoffee.com/pfython" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 
 
