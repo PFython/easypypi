@@ -1,12 +1,13 @@
 from pprint import pprint
+from pathlib import Path
 import os
-print(__file__)
+import shutil
+import click  # used to get cross-platform folder path for config file
 import datetime
 import requests
 import webbrowser
 from cleverdict import CleverDict
 import json
-from pathlib import Path
 from decimal import Decimal as decimal
 import PySimpleGUI as sg
 
@@ -14,6 +15,13 @@ from classifiers import classifier_list
 from licenses import licenses_dict
 from shared_functions import create_file, update_line
 from setup_template import HERE, PACKAGE_NAME, GITHUB_ID, VERSION, DESCRIPTION, LICENSE, AUTHOR, EMAIL, KEYWORDS, CLASSIFIERS, REQUIREMENTS, URL
+
+SG_KWARGS = {"title": "easyPyPI", "keep_on_top": True}
+
+# Persistent fields to keep in easyPyPI's config file:
+CONFIG_FIELDS = "AUTHOR EMAIL GITHUB_ID TWINE_USERNAME TWINE_PASSWORD SCRIPT_PATH".split()
+CONFIG = Path(click.get_app_dir("easyPyPI")) / ("config.json")
+# os.remove(CONFIG)
 
 def get_next_version_number():
     """ Suggests next package version number based on simple schemas """
@@ -28,7 +36,6 @@ def get_next_version_number():
         return str(decimal_version + decimal(increment))
     except dec.InvalidOperation:
         return new_version+"-new"
-    # TODO: Offer other schemas e.g. date format 2020.21.11
 
 def get_default_value(key):
     """
@@ -41,12 +48,12 @@ def get_default_value(key):
 def prompt_with_textbox(text, default, old_line_starts):
     """
     Prompts for new values with PySimpleGui and returns a new line to update
-    the old line in setup.py
+    the old line in setup.py.  Also updates the global variable in place.
     """
     key = old_line_starts.split()[0]
     if default == get_default_value:
         default = get_default_value(key)
-    new = sg.popup_get_text(text, title="easypypi", default_text = default, keep_on_top=True)
+    new = sg.popup_get_text(text, default_text = default, **SG_KWARGS)
     globals()[key] = new
     return new
 
@@ -93,7 +100,7 @@ def select_license():
             return [licenses[k] for k,v in values.items() if v][0]
         if event == "Skip" or not event:
             window.close()
-            return
+            return licenses[0]  # Default license
         if "http" in event:
             webbrowser.open(event)
 
@@ -135,7 +142,7 @@ def create_new_script():
                         get_next_version_number(),
                         "VERSION = "],
             "GITHUB_ID": ["Please enter your Github ID:",
-                          get_default_value,
+                          "",
                           "GITHUB_ID = "],
             "URL": ["Please enter a link to the package repository:",
                     get_default_value,
@@ -144,10 +151,10 @@ def create_new_script():
                           "",
                           "DESCRIPTION = "],
             "AUTHOR": ["Please the full name of the author:",
-                       "",
+                       get_config_value("AUTHOR"),
                        "AUTHOR = "],
             "EMAIL": ["Please enter an email address for the author:",
-                      "",
+                      get_config_value("EMAIL"),
                       "EMAIL = "],
             "KEYWORDS": ["Please enter some keywords separated by a comma:",
                          get_default_value,
@@ -158,12 +165,15 @@ def create_new_script():
 
     global SCRIPT
     for key, values in data.items():
-        if not globals()[key] and not eval(os.environ.get('EASYPYPI')).get(key):
-            # variable is empty
-            new_value = prompt_with_textbox(*values)
-            SCRIPT = update_line(SCRIPT, values[2], new_value)
-            if key in "GITHUB_ID EMAIL AUTHOR".split():
-                os.environ[key] = new_value
+        prompt, default_value, old_line_starts = values
+        if default_value:
+            globals()[key] = default_value
+        else:
+            default_value = get_config_value(key)
+        new_value = prompt_with_textbox(prompt, default_value, old_line_starts)
+        SCRIPT = update_line(SCRIPT, old_line_starts, new_value)
+        if key in CONFIG_FIELDS:
+            update_config_file()
     global CLASSIFIERS
     if not CLASSIFIERS:
         get_classifiers()  # Checkbox input not text
@@ -178,18 +188,19 @@ def create_new_script():
 def create_folder_structure():
     """
     Creates skeleton folder structure for a package and starter files.
-    Returns the new directory path of the package.
+    Updates global variable SCRIPT_PATH.
     """
-    package_path = Path(sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", keep_on_top=True)) / PACKAGE_NAME
-    for path in (package_path, package_path / PACKAGE_NAME):
-        try:
-            os.mkdir(path)
-            print(f"Created package folder {path}")
-        except FileExistsError:
-            print(f"Folder already exists {path}")
-    return package_path
+    global SCRIPT_PATH
+    SCRIPT_PATH  = Path(sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = SCRIPT_PATH, **SG_KWARGS))
+    update_config_file()
+    new_folder = SCRIPT_PATH / PACKAGE_NAME / PACKAGE_NAME
+    try:
+        os.makedirs(new_folder)
+        print(f"Created package folder {new_folder}")
+    except FileExistsError:
+        print(f"Folder already exists {new_folder}")
 
-def create_essential_files(path):
+def create_essential_files():
     """
     Creates essential files for the new package:
     /setup.py
@@ -199,91 +210,184 @@ def create_essential_files(path):
     /PACKAGE_NAME/PACKAGE_NAME.py
     /PACKAGE_NAME/test_PACKAGE_NAME.py
     """
-    create_file(path / PACKAGE_NAME / "__init__.py", [f"from {PACKAGE_NAME} import *"])
-    create_file(path / PACKAGE_NAME / (PACKAGE_NAME + ".py"), [f"# {PACKAGE_NAME} by {AUTHOR}\n", f"# {datetime.datetime.now()}\n"])
-    create_file(path / PACKAGE_NAME / ("test_" +PACKAGE_NAME + ".py"), [f"# Tests for {PACKAGE_NAME}\n", "\n", f"from {PACKAGE_NAME} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
-    create_file (path / "README.md", [f"# {PACKAGE_NAME}\n", DESCRIPTION+"\n\n", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {AUTHOR} {EMAIL}\n\n", "### CREDITS\n\n"])
+    package_path = SCRIPT_PATH / PACKAGE_NAME
+    create_file(package_path / PACKAGE_NAME / "__init__.py", [f"from {PACKAGE_NAME} import *"])
+    create_file(package_path / PACKAGE_NAME / (PACKAGE_NAME + ".py"), [f"# {PACKAGE_NAME} by {AUTHOR}\n", f"# {datetime.datetime.now()}\n"])
+    create_file(package_path / PACKAGE_NAME / ("test_" +PACKAGE_NAME + ".py"), [f"# Tests for {PACKAGE_NAME}\n", "\n", f"from {PACKAGE_NAME} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
+    create_file (package_path / "README.md", [f"# {PACKAGE_NAME}\n", DESCRIPTION+"\n\n", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {AUTHOR} {EMAIL}\n\n", "### CREDITS\n\n"])
     # setup.py and LICENSE should always be overwritten as most likely to
     # include changes from running easyPiPY.
     # The other files are just bare-bones initially, created as placeholders.
-    create_file(path / "setup.py", SCRIPT, overwrite = True)
-    create_file(path / "LICENSE", LICENSE.body, overwrite=True)
+    create_file(package_path / "setup.py", SCRIPT, overwrite = True)
+    create_file(package_path / "LICENSE", LICENSE.body, overwrite=True)
 
-    # TODO: Import defaults from README_template, test_template, init_template
-    # to enable easier editing/personalisation, rather than hard coding their
-    # template values as strings above.
+def copy_existing_files():
+    """
+    Prompts for additional files to copy over into the newly created folder:
+    \PACKAGE_NAME\PACKAGE_NAME
+    """
+    files = sg.popup_get_file("Please select any other files to copy to new project folder", **SG_KWARGS, default_path="", multiple_files=True)
+    for file in [Path(x) for x in files.split(";")]:
+        new_file = SCRIPT_PATH / PACKAGE_NAME / PACKAGE_NAME / file.name
+        if new_file.is_file():
+            response = sg.popup_yes_no(f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?", **SG_KWARGS)
+            if response == "No":
+                continue
+        if file.is_file():
+            shutil.copy(file, new_file)
+            print(f"✓ Copied {file.name} to {new_file.parent}")
+
+def create_config_folder():
+    """
+    Uses click to find the most appropriate, platform independent folder
+    for easyPyPI's config file.
+    """
+    # global CONFIG
+    try:
+        os.makedirs(CONFIG.parent)
+        print(f"Folder created: {CONFIG.parent}")
+    except FileExistsError:
+        pass
+    if not CONFIG.is_file():
+        with open(CONFIG, "w") as file:
+            json.dump({"AUTHOR": ""}, file)  # Create dummy .cfg file
+        print(f"Created a new config file: {CONFIG}")
+
+def update_config_file():
+    """ Updates CONFIG (json) file based on repeatedly used global variables """
+    create_config_folder()
+    global CONFIG
+    with open(CONFIG, "w") as file:
+        global SCRIPT_PATH
+        SCRIPT_PATH = str(SCRIPT_PATH)
+        fields_dict = {x: globals().get(x) for x in CONFIG_FIELDS}
+        SCRIPT_PATH = Path(SCRIPT_PATH)
+        # json can't handle pathlib objects
+        json.dump(fields_dict, file)
+    print(f"✓ {CONFIG.name} updated")
+
+def get_config_value(key):
+    """ Returns a single value from the easyPyPI CONFIG file, or None """
+    global CONFIG
+    try:
+        with open(CONFIG, "r") as file:
+            config = json.load(file)
+        return config.get(key)
+    except (json.decoder.JSONDecodeError, FileNotFoundError):
+        # e.g. if file is empty or doesn't exist
+        create_config_folder()
+        return get_config_value(key)  # Try again!
 
 def twine_setup():
     """
     Prompts for PyPI account setup and sets environment variables for Twine use.
     """
-    if not os.environ["TWINE_USERNAME"]:
+    if not get_config_value("TWINE_USERNAME"):
         urls = {"Test PyPI": r"https://test.pypi.org/account/register/",
                 "PyPI": r"https://pypi.org/account/register/"}
         for repo, url in urls.items():
-            response = sg.popup_yes_no(f"Do you need to register for an account on {repo}?",  title="easyPyPI", keep_on_top=True)
+            response = sg.popup_yes_no(f"Do you need to register for an account on {repo}?",  **SG_KWARGS)
             if response == "Yes":
-                print("Please register then return to easyPyPI to continue the process.")
-                print("*** You may encounter problems if you choose different usernames and passwords for Test PyPI and PyPI respectively ***")
+                print("Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process.")
                 webbrowser.open(url)
-        os.environ["TWINE_USERNAME"] = sg.popup_get_text(f"Please enter your {repo} username:", keep_on_top=True)
-    if not os.environ["TWINE_PASSWORD"]:
-        os.environ["TWINE_PASSWORD"] = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", keep_on_top=True)
+    response = sg.popup_get_text(f"Please enter your Twine username:", default_text = get_config_value("TWINE_USERNAME"), **SG_KWARGS)
+    if not response:
+        return
+    global TWINE_USERNAME
+    TWINE_USERNAME = response
+    update_config_file()
+    response = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = get_config_value("TWINE_PASSWORD"), **SG_KWARGS)
+    if not response:
+        return
+    global TWINE_PASSWORD
+    TWINE_PASSWORD = response
+    update_config_file()
+    # ! BUG - not picking up existing TWINE_USERNAME
 
-def run_system_commands(package_path):
-    """
-    Automates the final command line incantations for:
-      - Creating a .tar.gz distribution file with setup.py
-      - Uploading to PyPI or Test PyPI with twine
-    """
+def create_distribution_package():
+    """ Creates a .tar.gz distribution file with setup.py """
     try:
         import setuptools
         import twine
     except ImportError:
         print("> Installing setuptools and twine if not already present...")
         os.system('cmd /c "python -m pip install setuptools wheel twine"')
-    os.chdir(package_path)
+    os.chdir(SCRIPT_PATH / PACKAGE_NAME)
     print("> Running setup.py...")
     os.system('cmd /c "setup.py sdist"')
-    choice = sg.popup(f"Do you want to upload {PACKAGE_NAME} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n", title="easyPyPI", custom_text=("Test PyPI", "PyPI"), keep_on_top=True)
+
+def upload_with_twine():
+    """ Uploads to PyPI or Test PyPI with twine """
+    choice = sg.popup(f"Do you want to upload {PACKAGE_NAME} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n", **SG_KWARGS, custom_text=("Test PyPI", "PyPI"))
     if choice == "PyPI":
         params = "pypi"
-    else:
+    if choice == "Test PyPI":
         params = "testpypi"
+    if not choice:
+        return
     params += f' dist/*-{VERSION}.tar.gz '
-    while os.system(f'cmd /c "python -m twine upload --repository {params}"'):
-        # A return value of 1 indicates an error, probably authentication
-        print("Problem uploading with Twine; probably an authentication issue.")
-        print("Resetting username and password variables and rerunning setup.")
-        os.environ["TWINE_USERNAME"] = ""
-        os.environ["TWINE_PASSWORD"] = ""
-        twine_setup()
-    url = "https://"
-    url += "" if choice == "PyPI" else "test."
-    webbrowser.open(url + f"pypi.org/project/{PACKAGE_NAME}")
-    response = sg.popup_yes_no("Fantastic! Your package should now be available in your webbrowser.\n\nDo you want to install it now using pip?\n")
-    if response == "Yes":
-        if not os.system(f'cmd /c "pip install -i https://test.pypi.org/simple/ {PACKAGE_NAME} --upgrade"'):
-            # A return value of 1 indicates an error, 0 indicates success
-            print(f"{PACKAGE_NAME} successfully installed using pip!\n", keep_on_top=True)
-            print(f"You can view its details using 'pip show {PACKAGE_NAME}'")
-            os.system(f'cmd /c "pip show {PACKAGE_NAME}"')
+    if os.system(f'cmd /c "python -m twine upload --repository {params} -u {TWINE_USERNAME} -p {TWINE_PASSWORD}"'):
+        # A return value of 1 (True) indicates an error
+        print("Problem uploading with Twine; probably either:")
+        print(" - An authentication issue.  Check your username and password?")
+        print(" - Using an existing version number.  Try a new version number?")
+    else:
+        url = "https://"
+        url += "" if choice == "PyPI" else "test."
+        webbrowser.open(url + f"pypi.org/project/{PACKAGE_NAME}")
+        response = sg.popup_yes_no("Fantastic! Your package should now be available in your webbrowser.\n\nDo you want to install it now using pip?\n", **SG_KWARGS)
+        if response == "Yes":
+            if not os.system(f'cmd /c "pip install -i https://test.pypi.org/simple/ {PACKAGE_NAME} --upgrade"'):
+                # A return value of 1 indicates an error, 0 indicates success
+                print(f"{PACKAGE_NAME} successfully installed using pip!\n")
+                print(f"You can view its details using 'pip show {PACKAGE_NAME}'")
+                os.system(f'cmd /c "pip show {PACKAGE_NAME}"')
+
+def upload_to_github():
+    """ Uploads package as a repository on Github """
+    return
+    # TODO
+
+if __name__ == "__main__":
+    # print = sg.Print
+    sg.change_look_and_feel('DarkAmber')
+    print(f"easyPyPI template files are locatedin:\n{HERE}")
+    try:
+        SCRIPT_PATH = get_config_value("SCRIPT_PATH") or Path().cwd()
+    except json.decoder.JSONDecodeError:  # e.g. if file is empty
+        SCRIPT_PATH = Path().cwd()
+    with open(HERE / "setup_template.py", "r") as file:
+        SCRIPT = file.readlines()
+    create_new_script()
+    update_config_file()
+    create_folder_structure()
+    create_essential_files()
+    copy_existing_files()
+    twine_setup()
+    create_distribution_package()
+    upload_with_twine()
+    upload_to_github()
+
+    # TODO:Refactor to avoid use of global variables e.g. Package/Session class?
+
+    # TODO: Save "last session" package values to CONFIG?
+
+    # TODO: Entry point for upversioning/updating package later on
+
     # TODO: Redirect os.system output to PySimpleGui Debug Window?
+
+    # TODO: Implement config files instead of environment variables e.g.
+    # https://github.com/json-transformations/jsonconfig
+
     # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
     # Maybe refactor to use .pypirc config files?
     # https://packaging.python.org/specifications/pypirc/#common-configurations
 
-if __name__ == "__main__":
-    print = sg.Print
-    sg.change_look_and_feel('DarkAmber')
-    print(f"easyPyPI template files are in: {HERE}", do_not_reroute_stdout=False)
-    global SCRIPT
-    with open(HERE / "setup_template.py", "r") as file:
-        SCRIPT = file.readlines()
-    create_new_script()
-    package_path = create_folder_structure()
-    create_essential_files(package_path)
-    twine_setup()
-    run_system_commands(package_path)
+    # TODO: Import defaults from README_template, test_template, init_template
+    # to enable easier editing/personalisation, rather than hard coding their
+    # template values as strings in create_essential_file().
 
+    # TODO: Offer other schemas in get_next_version_number e.g. date format:
+    # 2020.21.11
 
+    # TODO: Save password securely
