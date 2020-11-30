@@ -1,32 +1,206 @@
-from pprint import pprint
-from pathlib import Path
+import datetime
+import json
 import os
 import shutil
-import click  # used to get cross-platform folder path for config file
-import datetime
-import requests
 import webbrowser
-from cleverdict import CleverDict
-import json
 from decimal import Decimal as decimal
+from pathlib import Path
+import click  # used to get cross-platform folder path for config file
 import PySimpleGUI as sg
 
+from cleverdict import CleverDict
+from shared_functions import create_file, update_line
 from classifiers import classifier_list
 from licenses import licenses_dict
-from shared_functions import create_file, update_line
-from setup_template import HERE, PACKAGE_NAME, GITHUB_ID, VERSION, DESCRIPTION, LICENSE, AUTHOR, EMAIL, KEYWORDS, CLASSIFIERS, REQUIREMENTS, URL
+from setup_template import (author, CLASSIFIERS, DESCRIPTION, EMAIL, github_id,
+                            HERE, KEYWORDS, LICENSE, package_name,
+                            REQUIREMENTS, URL, VERSION)
 
-SG_KWARGS = {"title": "easyPyPI", "keep_on_top": True}
+# Global keyword arguments for PySimpleGUI:
+sg_kwargs = {"title": "easyPyPI", "keep_on_top": True}
 
-# Persistent fields to keep in easyPyPI's config file:
-CONFIG_FIELDS = "AUTHOR EMAIL GITHUB_ID TWINE_USERNAME TWINE_PASSWORD SCRIPT_PATH".split()
-CONFIG = Path(click.get_app_dir("easyPyPI")) / ("config.json")
-# os.remove(CONFIG)
+class Session(CleverDict):
+    """
+    Stores information about the current project as well as persistent
+    variables such as email address that are unlikely to change often
+    for a typical user.
 
-def get_next_version_number():
+    Makes use of CleverDict's auto-save feature to store values in a config
+    file, and .get_aliases() to keep a track of newly created attributes.
+    """
+    config_path = Path(click.get_app_dir("easyPyPI")) / ("config.json")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.create_config_file()
+        self.load_value("script_path_str")
+        if not self.script_path_str:
+            self.script_path_str = os.getcwd()
+
+    def __str__(self):
+        output = self.info(as_str=True)
+        return output.replace("CleverDict", type(self).__name__, 1)
+
+    def save(self, key: str, value: any):
+        """
+        This method is called by CleverDict whenever a value or attribute
+        changes.  Used here to update the config file automatically.
+        """
+        with open(Session.config_path, "w") as file:
+            # CleverDict.get_aliases finds attributes created after __init__:
+            fields_dict = {x: self.get(x) for x in self.get_aliases() if "PASSWORD" not in x}
+            json.dump(fields_dict, file)
+        print(f"✓ '{key}' updated in {Session.config_path}")
+        # TODO: Save password securely e.g. with keyring
+
+    def create_config_file(self):
+        """
+        Uses click to find & create a platform-appropriate easyPyPI folder, then
+        creates a skeleton json file there to store persistent data (if one
+        doesn't already exist, or if the current one is empty).
+        """
+        try:
+            os.makedirs(Session.config_path.parent)
+            print(f"Folder created: {Session.config_path.parent}")
+        except FileExistsError:
+            pass
+        if Session.config_path.is_file() and Session.config_path.stat().st_size:
+            # config file exists and isn't empty
+            return
+        with open(Session.config_path, "w") as file:
+            json.dump({"author": ""}, file)  # Create skeleton .json file
+        print(f"Created a new config file: {Session.config_path}")
+
+    def load_value(self, key):
+        """
+        Loads a value from the config file and updates the relevant attribute.
+        """
+        try:
+            with open(Session.config_path, "r") as file:
+                value = json.load(file).get(key)
+                setattr(self, key, value)
+        except (json.decoder.JSONDecodeError, FileNotFoundError):
+            # e.g. if file is empty or doesn't exist
+            return
+
+    @property
+    def script_path(self):
+        """
+        json.dump can't serialise pathlib objects so this method creates them
+        from script_path_str.
+
+        This approach ensures the property doesn't appear in .get_aliases which
+        is used for deciding what attributes get auto-saved to the config file.
+        """
+        return Path(self.script_path_str)
+
+    def delete_config_file(self):
+        """
+        Deletes the easyPyPI config file e.g. in case of corruption.
+        Creating a new Session object will automatically recreate a fresh one.
+        """
+        os.remove(Session.config_path)
+
+    def get_default_package_name(self):
+        return "as_easy_as_pie"
+
+    def get_default_version(self):
+        return get_next_version_number(VERSION)
+
+    def get_default_github_id(self):
+        return
+
+    def get_default_url(self):
+        default = f"https://github.com/{self.load_value('github_id')}
+        return default + f"/{self.load_value('package_name')}"
+
+    def get_default_description(self):
+        return
+
+    def get_default_author(self):
+        return
+
+    def get_default_email(self):
+        return
+
+    def get_default_keywords(self):
+        default = f"{self.load_value('package_name')}, "
+        default += f"{self.load_value('author')}, "
+        return default + f"{self.load_value('github_id')}, "
+
+    def get_default_requirements(self):
+        return "cleverdict, "
+
+    def get_metadata(self):
+        """
+        Check config file for previous values.  If no value is set, prompts for
+        a value and updates the relevant Session attribute.
+        """
+        prompts = {"PACKAGE_NAME": "Please enter a name for this package:",
+                   "VERSION": "Please enter latest version number:",
+                   "GITHUB_ID": "Please enter your Github ID:",
+                   "URL": "Please enter a link to the package repository:",
+                   "DESCRIPTION": "Please enter a description:",
+                   "AUTHOR": "Please the full name of the author:",
+                   "EMAIL": "Please enter an email address for the author:",
+                   "KEYWORDS": "Please enter some keywords separated by a comma:",
+                   "REQUIREMENTS": "Please enter any packages/modules that absolutely need to be installed for yours to work, separated by commas:"}
+        for key, prompt in prompts.items():
+            default = self.load_value(prompt)
+            if not default:
+                func = getattr(self, "get_default_" + key.lower())
+                default = func()
+            old_line_starts = key.upper() + " = "
+            new = sg.popup_get_text(prompt, default_text = default, **sg_kwargs)
+            self.script = update_line(self.script, old_line_starts, new)
+
+    def get_classifiers(self):
+        """
+        Selects classifiers in key categories to better describe the package.
+        Choices are imported from classifiers.classifier_list.
+        Updates made in place to .classifiers list
+        """
+        self.load_value("classifiers")
+        if not self.classifiers:
+            self.classifiers = []
+        else:  # str -> list
+            self.classifiers = eval(self.classifiers)
+        for group in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split("|"):
+            choices = [x for x in classifier_list if x.startswith(group)]
+            self.classifiers.extend(prompt_with_checkboxes(group, choices))
+        self.classifiers = ", ".join(self.classifiers)
+
+    def get_license(self):
+        """
+        Select from a shortlist of common license types
+        Choices are imported from license.licenses_dict.
+        Updates made in place to .license
+        """
+        licenses = [CleverDict(x) for x in licenses_dict]
+        layout = [[sg.Text(text=f"Please select a License for your package:")]]
+        for license in licenses:
+            layout.extend([[sg.Radio(license.key.upper(), "licenses", font="bold 12" ,tooltip = license.description, size = (10,1)), sg.Text(text=license.html_url, enable_events=True, size = (40,1))]])
+        layout += [[sg.Button("OK"), sg.Button("Skip")]]
+        window = sg.Window("easypypi", layout, size = (600,400),resizable=True)
+        while True:
+            event, values  =  window.read(close=True)
+            if event == "OK" and any(values.values()):
+                window.close()
+                return [licenses[k] for k,v in values.items() if v][0]
+            if event == "Skip" or not event:
+                window.close()
+                return licenses[0]  # Default license
+            if "http" in event:
+                webbrowser.open(event)
+            if LICENSE:
+                LICENSE = finalise_license(LICENSE)
+            SCRIPT = update_line(SCRIPT, "LICENSE = ", LICENSE.name)
+
+### STATIC METHODS
+
+def get_next_version_number(current_version):
     """ Suggests next package version number based on simple schemas """
-    global VERSION
-    decimal_version = decimal(str(VERSION))
+    decimal_version = decimal(str(current_version))
     try:
         _, digits, exponent =decimal_version.as_tuple()
         if exponent == 0:  # i.e. 0 decimal places:
@@ -36,26 +210,6 @@ def get_next_version_number():
         return str(decimal_version + decimal(increment))
     except dec.InvalidOperation:
         return new_version+"-new"
-
-def get_default_value(key):
-    """
-    Just-in-time generation of suggested default value after global variables
-    (empty initially) are updated with user input.
-    """
-    return {"URL": f"https://github.com/{GITHUB_ID}/{PACKAGE_NAME}",
-            "KEYWORDS": f"{PACKAGE_NAME}, {AUTHOR}, {GITHUB_ID}, ",}[key]
-
-def prompt_with_textbox(text, default, old_line_starts):
-    """
-    Prompts for new values with PySimpleGui and returns a new line to update
-    the old line in setup.py.  Also updates the global variable in place.
-    """
-    key = old_line_starts.split()[0]
-    if default == get_default_value:
-        default = get_default_value(key)
-    new = sg.popup_get_text(text, default_text = default, **SG_KWARGS)
-    globals()[key] = new
-    return new
 
 def prompt_with_checkboxes(group,choices):
     """
@@ -71,38 +225,8 @@ def prompt_with_checkboxes(group,choices):
     else:
         return []
 
-def get_classifiers():
-    """
-    Selects classifiers in key categories to better describe the package
-    """
-    global CLASSIFIERS
-    if CLASSIFIERS == "":
-        CLASSIFIERS = []
-    for group in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split("|"):
-        choices = [x for x in classifier_list if x.startswith(group)]
-        CLASSIFIERS.extend(prompt_with_checkboxes(group, choices))
-    CLASSIFIERS = ", ".join(CLASSIFIERS)
 
-def select_license():
-    """
-    Select from a shortlist of common license types
-    """
-    licenses = [CleverDict(x) for x in licenses_dict]
-    layout = [[sg.Text(text=f"Please select a License for your package:")]]
-    for license in licenses:
-        layout.extend([[sg.Radio(license.key.upper(), "licenses", font="bold 12" ,tooltip = license.description, size = (10,1)), sg.Text(text=license.html_url, enable_events=True, size = (40,1))]])
-    layout += [[sg.Button("OK"), sg.Button("Skip")]]
-    window = sg.Window("easypypi", layout, size = (600,400),resizable=True)
-    while True:
-        event, values  =  window.read(close=True)
-        if event == "OK" and any(values.values()):
-            window.close()
-            return [licenses[k] for k,v in values.items() if v][0]
-        if event == "Skip" or not event:
-            window.close()
-            return licenses[0]  # Default license
-        if "http" in event:
-            webbrowser.open(event)
+    # TODO: Select checkboxes based on config file
 
 def finalise_license(license):
     """ Make simple updates based on license.implementation instructions """
@@ -114,86 +238,29 @@ def finalise_license(license):
         license.body += gpl.body
     if license.key == "mit":
         replacements = {"[year]": year,
-                        "[fullname]": AUTHOR}
+                        "[fullname]": author}
     if license.key in ['gpl-3.0', 'lgpl-3.0', 'agpl-3.0']:
         replacements = {"<year>": year,
-                        "<name of author>": AUTHOR,
-                        "<program>": PACKAGE_NAME,
+                        "<name of author>": author,
+                        "<program>": package_name,
                         "Also add information on how to contact you by electronic and paper mail.": f"    Contact email: {EMAIL}",
-                        "<one line to give the program's name and a brief idea of what it does.>": f"{PACKAGE_NAME}: {DESCRIPTION}"}
+                        "<one line to give the program's name and a brief idea of what it does.>": f"{package_name}: {DESCRIPTION}"}
     if license.key == "apache-2.0":
         replacements = {"[yyyy]": year,
-                        "[name of copyright owner]": AUTHOR}
+                        "[name of copyright owner]": author}
     if replacements:
         for old, new in replacements.items():
             license.body = license.body.replace(old, new)
     return license
-
-def create_new_script():
-    """
-    Check global variables created from setup_template.py as well as the
-    system environment variable EASYPIPY.  If no value is set, prompts for
-    a value and updates SCRIPT, which will later be used to create setup.py
-    """
-    data = {"PACKAGE_NAME": ["Please enter a name for this package:",
-                     "as_easy_as_pie",
-                     "PACKAGE_NAME = "],
-            "VERSION": ["Please enter latest version number:",
-                        get_next_version_number(),
-                        "VERSION = "],
-            "GITHUB_ID": ["Please enter your Github ID:",
-                          "",
-                          "GITHUB_ID = "],
-            "URL": ["Please enter a link to the package repository:",
-                    get_default_value,
-                    "URL = "],
-            "DESCRIPTION": ["Please enter a description:",
-                          "",
-                          "DESCRIPTION = "],
-            "AUTHOR": ["Please the full name of the author:",
-                       get_config_value("AUTHOR"),
-                       "AUTHOR = "],
-            "EMAIL": ["Please enter an email address for the author:",
-                      get_config_value("EMAIL"),
-                      "EMAIL = "],
-            "KEYWORDS": ["Please enter some keywords separated by a comma:",
-                         get_default_value,
-                         "KEYWORDS = "],
-            "REQUIREMENTS": ["Please enter any packages/modules that absolutely need to be installed for yours to work, separated by commas:",
-                             "cleverdict, ",
-                             "REQUIREMENTS = "],}
-
-    global SCRIPT
-    for key, values in data.items():
-        prompt, default_value, old_line_starts = values
-        if default_value:
-            globals()[key] = default_value
-        else:
-            default_value = get_config_value(key)
-        new_value = prompt_with_textbox(prompt, default_value, old_line_starts)
-        SCRIPT = update_line(SCRIPT, old_line_starts, new_value)
-        if key in CONFIG_FIELDS:
-            update_config_file()
-    global CLASSIFIERS
-    if not CLASSIFIERS:
-        get_classifiers()  # Checkbox input not text
-        SCRIPT = update_line(SCRIPT, "CLASSIFIERS = ", str(CLASSIFIERS))
-    global LICENSE
-    if not LICENSE:
-        LICENSE = select_license()
-        if LICENSE:
-            LICENSE = finalise_license(LICENSE)
-        SCRIPT = update_line(SCRIPT, "LICENSE = ", LICENSE.name)
 
 def create_folder_structure():
     """
     Creates skeleton folder structure for a package and starter files.
     Updates global variable SCRIPT_PATH.
     """
-    global SCRIPT_PATH
-    SCRIPT_PATH  = Path(sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = SCRIPT_PATH, **SG_KWARGS))
+    script_path  = Path(sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = script_path, **sg_kwargs))
     update_config_file()
-    new_folder = SCRIPT_PATH / PACKAGE_NAME / PACKAGE_NAME
+    new_folder = script_path / package_name / package_name
     try:
         os.makedirs(new_folder)
         print(f"Created package folder {new_folder}")
@@ -206,15 +273,15 @@ def create_essential_files():
     /setup.py
     /README.md
     /LICENSE
-    /PACKAGE_NAME/__init__.py
-    /PACKAGE_NAME/PACKAGE_NAME.py
-    /PACKAGE_NAME/test_PACKAGE_NAME.py
+    /package_name/__init__.py
+    /package_name/package_name.py
+    /package_name/test_PACKAGE_NAME.py
     """
-    package_path = SCRIPT_PATH / PACKAGE_NAME
-    create_file(package_path / PACKAGE_NAME / "__init__.py", [f"from {PACKAGE_NAME} import *"])
-    create_file(package_path / PACKAGE_NAME / (PACKAGE_NAME + ".py"), [f"# {PACKAGE_NAME} by {AUTHOR}\n", f"# {datetime.datetime.now()}\n"])
-    create_file(package_path / PACKAGE_NAME / ("test_" +PACKAGE_NAME + ".py"), [f"# Tests for {PACKAGE_NAME}\n", "\n", f"from {PACKAGE_NAME} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
-    create_file (package_path / "README.md", [f"# {PACKAGE_NAME}\n", DESCRIPTION+"\n\n", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {AUTHOR} {EMAIL}\n\n", "### CREDITS\n\n"])
+    package_path = script_path / package_name
+    create_file(package_path / package_name / "__init__.py", [f"from {package_name} import *"])
+    create_file(package_path / package_name / (package_name + ".py"), [f"# {package_name} by {author}\n", f"# {datetime.datetime.now()}\n"])
+    create_file(package_path / package_name / ("test_" +package_name + ".py"), [f"# Tests for {package_name}\n", "\n", f"from {package_name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
+    create_file (package_path / "README.md", [f"# {package_name}\n", DESCRIPTION+"\n\n", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {author} {EMAIL}\n\n", "### CREDITS\n\n"])
     # setup.py and LICENSE should always be overwritten as most likely to
     # include changes from running easyPiPY.
     # The other files are just bare-bones initially, created as placeholders.
@@ -224,79 +291,40 @@ def create_essential_files():
 def copy_existing_files():
     """
     Prompts for additional files to copy over into the newly created folder:
-    \PACKAGE_NAME\PACKAGE_NAME
+    \package_name\package_name
     """
-    files = sg.popup_get_file("Please select any other files to copy to new project folder", **SG_KWARGS, default_path="", multiple_files=True)
+    files = sg.popup_get_file("Please select any other files to copy to new project folder", **sg_kwargs, default_path="", multiple_files=True)
     for file in [Path(x) for x in files.split(";")]:
-        new_file = SCRIPT_PATH / PACKAGE_NAME / PACKAGE_NAME / file.name
+        new_file = script_path / package_name / package_name / file.name
         if new_file.is_file():
-            response = sg.popup_yes_no(f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?", **SG_KWARGS)
+            response = sg.popup_yes_no(f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?", **sg_kwargs)
             if response == "No":
                 continue
         if file.is_file():
             shutil.copy(file, new_file)
             print(f"✓ Copied {file.name} to {new_file.parent}")
 
-def create_config_folder():
-    """
-    Uses click to find the most appropriate, platform independent folder
-    for easyPyPI's config file.
-    """
-    # global CONFIG
-    try:
-        os.makedirs(CONFIG.parent)
-        print(f"Folder created: {CONFIG.parent}")
-    except FileExistsError:
-        pass
-    if not CONFIG.is_file():
-        with open(CONFIG, "w") as file:
-            json.dump({"AUTHOR": ""}, file)  # Create dummy .cfg file
-        print(f"Created a new config file: {CONFIG}")
 
-def update_config_file():
-    """ Updates CONFIG (json) file based on repeatedly used global variables """
-    create_config_folder()
-    global CONFIG
-    with open(CONFIG, "w") as file:
-        global SCRIPT_PATH
-        SCRIPT_PATH = str(SCRIPT_PATH)
-        fields_dict = {x: globals().get(x) for x in CONFIG_FIELDS}
-        SCRIPT_PATH = Path(SCRIPT_PATH)
-        # json can't handle pathlib objects
-        json.dump(fields_dict, file)
-    print(f"✓ {CONFIG.name} updated")
-
-def get_config_value(key):
-    """ Returns a single value from the easyPyPI CONFIG file, or None """
-    global CONFIG
-    try:
-        with open(CONFIG, "r") as file:
-            config = json.load(file)
-        return config.get(key)
-    except (json.decoder.JSONDecodeError, FileNotFoundError):
-        # e.g. if file is empty or doesn't exist
-        create_config_folder()
-        return get_config_value(key)  # Try again!
 
 def twine_setup():
     """
     Prompts for PyPI account setup and sets environment variables for Twine use.
     """
-    if not get_config_value("TWINE_USERNAME"):
+    if not load_value("TWINE_USERNAME"):
         urls = {"Test PyPI": r"https://test.pypi.org/account/register/",
                 "PyPI": r"https://pypi.org/account/register/"}
         for repo, url in urls.items():
-            response = sg.popup_yes_no(f"Do you need to register for an account on {repo}?",  **SG_KWARGS)
+            response = sg.popup_yes_no(f"Do you need to register for an account on {repo}?",  **sg_kwargs)
             if response == "Yes":
                 print("Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process.")
                 webbrowser.open(url)
-    response = sg.popup_get_text(f"Please enter your Twine username:", default_text = get_config_value("TWINE_USERNAME"), **SG_KWARGS)
+    response = sg.popup_get_text(f"Please enter your Twine username:", default_text = load_value("TWINE_USERNAME"), **sg_kwargs)
     if not response:
         return
     global TWINE_USERNAME
     TWINE_USERNAME = response
     update_config_file()
-    response = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = get_config_value("TWINE_PASSWORD"), **SG_KWARGS)
+    response = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = load_value("TWINE_PASSWORD"), **sg_kwargs)
     if not response:
         return
     global TWINE_PASSWORD
@@ -312,13 +340,13 @@ def create_distribution_package():
     except ImportError:
         print("> Installing setuptools and twine if not already present...")
         os.system('cmd /c "python -m pip install setuptools wheel twine"')
-    os.chdir(SCRIPT_PATH / PACKAGE_NAME)
+    os.chdir(script_path / package_name)
     print("> Running setup.py...")
     os.system('cmd /c "setup.py sdist"')
 
 def upload_with_twine():
     """ Uploads to PyPI or Test PyPI with twine """
-    choice = sg.popup(f"Do you want to upload {PACKAGE_NAME} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n", **SG_KWARGS, custom_text=("Test PyPI", "PyPI"))
+    choice = sg.popup(f"Do you want to upload {package_name} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n", **sg_kwargs, custom_text=("Test PyPI", "PyPI"))
     if choice == "PyPI":
         params = "pypi"
     if choice == "Test PyPI":
@@ -334,14 +362,14 @@ def upload_with_twine():
     else:
         url = "https://"
         url += "" if choice == "PyPI" else "test."
-        webbrowser.open(url + f"pypi.org/project/{PACKAGE_NAME}")
-        response = sg.popup_yes_no("Fantastic! Your package should now be available in your webbrowser.\n\nDo you want to install it now using pip?\n", **SG_KWARGS)
+        webbrowser.open(url + f"pypi.org/project/{package_name}")
+        response = sg.popup_yes_no("Fantastic! Your package should now be available in your webbrowser.\n\nDo you want to install it now using pip?\n", **sg_kwargs)
         if response == "Yes":
-            if not os.system(f'cmd /c "pip install -i https://test.pypi.org/simple/ {PACKAGE_NAME} --upgrade"'):
+            if not os.system(f'cmd /c "pip install -i https://test.pypi.org/simple/ {package_name} --upgrade"'):
                 # A return value of 1 indicates an error, 0 indicates success
-                print(f"{PACKAGE_NAME} successfully installed using pip!\n")
-                print(f"You can view its details using 'pip show {PACKAGE_NAME}'")
-                os.system(f'cmd /c "pip show {PACKAGE_NAME}"')
+                print(f"{package_name} successfully installed using pip!\n")
+                print(f"You can view its details using 'pip show {package_name}'")
+                os.system(f'cmd /c "pip show {package_name}"')
 
 def upload_to_github():
     """ Uploads package as a repository on Github """
@@ -352,12 +380,8 @@ if __name__ == "__main__":
     # print = sg.Print
     sg.change_look_and_feel('DarkAmber')
     print(f"easyPyPI template files are locatedin:\n{HERE}")
-    try:
-        SCRIPT_PATH = get_config_value("SCRIPT_PATH") or Path().cwd()
-    except json.decoder.JSONDecodeError:  # e.g. if file is empty
-        SCRIPT_PATH = Path().cwd()
-    with open(HERE / "setup_template.py", "r") as file:
-        SCRIPT = file.readlines()
+    with open(self.HERE / "setup_template.py", "r") as file:
+        self.SCRIPT = file.readlines()
     create_new_script()
     update_config_file()
     create_folder_structure()
@@ -368,16 +392,11 @@ if __name__ == "__main__":
     upload_with_twine()
     upload_to_github()
 
-    # TODO:Refactor to avoid use of global variables e.g. Package/Session class?
-
-    # TODO: Save "last session" package values to CONFIG?
 
     # TODO: Entry point for upversioning/updating package later on
 
     # TODO: Redirect os.system output to PySimpleGui Debug Window?
 
-    # TODO: Implement config files instead of environment variables e.g.
-    # https://github.com/json-transformations/jsonconfig
 
     # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
     # Maybe refactor to use .pypirc config files?
@@ -390,4 +409,5 @@ if __name__ == "__main__":
     # TODO: Offer other schemas in get_next_version_number e.g. date format:
     # 2020.21.11
 
-    # TODO: Save password securely
+
+
