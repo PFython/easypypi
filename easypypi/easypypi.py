@@ -111,7 +111,7 @@ class Session(CleverDict):
         return
 
     def get_default_url(self):
-        default = f"https://github.com/{self.load_value('github_id')}
+        default = f"https://github.com/{self.load_value('github_id')}"
         return default + f"/{self.load_value('package_name')}"
 
     def get_default_description(self):
@@ -370,15 +370,20 @@ def upload_with_twine():
                 print(f"{package_name} successfully installed using pip!\n")
                 print(f"You can view its details using 'pip show {package_name}'")
                 os.system(f'cmd /c "pip show {package_name}"')
+    # TODO: Automate registration with https://mechanicalsoup.readthedocs.io/
 
 def upload_to_github():
     """ Uploads package as a repository on Github """
     return
     # TODO
+    # https://mechanicalsoup.readthedocs.io/
 
 if __name__ == "__main__":
-    # print = sg.Print
+    print = sg.Print
     sg.change_look_and_feel('DarkAmber')
+    sg.set_options(message_box_line_width=80, debug_win_size=(80,30),)
+    # Redirect stdout and stderr to Debug Window
+    print(do_not_reroute_stdout=False,  keep_on_top = True)
     print(f"easyPyPI template files are locatedin:\n{HERE}")
     with open(self.HERE / "setup_template.py", "r") as file:
         self.SCRIPT = file.readlines()
@@ -396,7 +401,6 @@ if __name__ == "__main__":
     # TODO: Entry point for upversioning/updating package later on
 
     # TODO: Redirect os.system output to PySimpleGui Debug Window?
-
 
     # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
     # Maybe refactor to use .pypirc config files?
