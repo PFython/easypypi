@@ -1,3 +1,4 @@
+![As Easy as Pie](https://raw.githubusercontent.com/PFython/easypypi/main/easypypi.ico)
 # `easyPyPI` (Pronounced "Easy Pie-Pea-Eye")
 > Want to share your Python script(s)  so others can simply `pip install yourscript`?
 
