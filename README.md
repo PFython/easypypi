@@ -11,10 +11,10 @@ Just install `easyPyPI`, run it, and follow the prompts.  No knowledge of `setup
     pip install easypypi
     python.exe -m easypypi
 
-With `easyPyPI` you don't have to waste your time (as I did...):
+With `easyPyPI` you don't have to spend hours...
 
-- Reading 5 tutorials about `distutils` only to find `setuptools` is what you need.
-- Reading another 5 tutorials just to work out the steps below.
+- Reading tutorials about `distutils` only to find `setuptools` is what you need.
+- Reading yet more tutorials just to work out the essential steps (below).
 - Manually creating a folder structure and moving your script(s) there.
 - Manually creating a skeleton `README.md`
 - Manually creating a skeleton `__init__.py`
