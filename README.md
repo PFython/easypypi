@@ -9,7 +9,7 @@
 Just install `easyPyPI`, run it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
 
     pip install easypypi
-    python.exe -m easypypi.
+    python.exe -m easypypi
 
 With `easyPyPI` you don't have to waste your time (as I did...):
 
