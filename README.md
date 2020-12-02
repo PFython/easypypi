@@ -7,8 +7,7 @@
 `easyPyPI` is mainly intended for Pythonistas who've been put off publishing to **PyPI** before now or tried it but (like the author) thought "There *must* be an easier way than this!".
 
 ![](https://media.giphy.com/media/XIqCQx02E1U9W/giphy.gif)
-
-**<<< Life before easyPyPI**
+**<<< Publishing without easyPyPI**
 
 Just install `easyPyPI`, run it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
 
@@ -33,8 +32,7 @@ Enjoy!
 
 
 ![](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
-
-**<<< Life after easyPyPI**
+**<<< Publishing with easyPyPI**
 
 
 And and if you find `easypypi` helpful, please feel free to:
