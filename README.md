@@ -1,6 +1,6 @@
 ![Easy Pie Pea Eye](https://github.com/PFython/easypypi/blob/main/easypypi.png?raw=true)
-# `easyPyPI` (Pronounced "Easy Pie-Pea-Eye")
-`easyPyPI` is a quick, simple, one-size-fits-all solution for publishing your Python creations to the [Python Package Index](https://pypi.org/) (**PyPI**) so others can just `pip install yourscript` with minimal fuss.
+# `easyPyPI`
+`easyPyPI` (Pronounced "Easy Pie-Pea-Eye") is a quick, simple, one-size-fits-all solution for publishing your Python creations to the [Python Package Index](https://pypi.org/) (**PyPI**) so others can just `pip install yourscript` with minimal fuss.
 
 `easyPyPI` is mainly intended at Pythonistas haven't published to **PyPI** before or have, but (like the author) thought "There *must* be an easier way than this!".
 
