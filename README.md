@@ -1,6 +1,4 @@
-![Easy](https://raw.githubusercontent.com/PFython/easypypi/main/easy.ico) ![Pie](https://raw.githubusercontent.com/PFython/easypypi/main/easypypi.ico)
-
-![Pea](https://raw.githubusercontent.com/PFython/easypypi/main/pea.ico) ![Eye](https://raw.githubusercontent.com/PFython/easypypi/main/eye.ico)
+![Easy Pie Pea Eye](https://github.com/PFython/easypypi/blob/main/easypypi.png?raw=true)
 # `easyPyPI` (Pronounced "Easy Pie-Pea-Eye")
 `easyPyPI` is a quick, simple, one-size-fits-all solution for publishing your Python creations to the [Python Package Index](https://pypi.org/) (**PyPI**) so others can just `pip install yourscript` with minimal fuss.
 
