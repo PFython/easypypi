@@ -171,6 +171,7 @@ class Session(CleverDict):
             new = sg.popup_get_text(prompt, default_text = default, **sg_kwargs)
             setattr(self, key, new)
             self.script = update_line(self.script, old_line_starts, new)
+        # TODO: config overwritten between session?
 
     def get_classifiers(self):
         """
@@ -179,7 +180,7 @@ class Session(CleverDict):
         Updates made in place to .classifiers list
         """
         self.load_value("classifiers")
-        if not self.classifiers:
+        if not hasattr(self, "classifiers"):
             self.classifiers = []
         else:  # str -> list
             self.classifiers = eval(self.classifiers)
@@ -204,15 +205,15 @@ class Session(CleverDict):
             event, values  =  window.read(close=True)
             if event == "OK" and any(values.values()):
                 window.close()
-                return [licenses[k] for k,v in values.items() if v][0]
+                self.license = [licenses[k] for k,v in values.items() if v][0]
             if event == "Skip" or not event:
                 window.close()
-                return licenses[0]  # Default license
+                self.license = licenses[0]  # Default license
             if "http" in event:
                 webbrowser.open(event)
-            if LICENSE:
-                LICENSE = finalise_license(LICENSE)
-            self.SCRIPT = update_line(SCRIPT, "LICENSE = ", LICENSE.name)
+            if hasattr(self, "license"):
+                finalise_license(LICENSE)
+            self.script = update_line(self.script, "LICENSE = ", LICENSE.name)
 
 ### STATIC METHODS
 
@@ -415,6 +416,10 @@ start_gui(redirect=False)
 if __name__ == "__main__":
     self = Session()
     self.get_metadata()
+    self.get_classifiers()
+    self.get_license()
+
+
     update_config_file()
     create_folder_structure()
     create_essential_files()
