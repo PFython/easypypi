@@ -1,18 +1,15 @@
 ![As Easy as Pie](https://raw.githubusercontent.com/PFython/easypypi/main/easypypi.ico)
-#`easyPyPI` (Pronounced "Easy Pie-Pea-Eye")
-> Want to share your Python script(s)  so others can simply `pip install yourscript`?
+# `easyPyPI` (Pronounced "Easy Pie-Pea-Eye")
+`easyPyPI` is a quick, simple, one-size-fits-all solution for publishing your Python creations to the [Python Package Index](https://pypi.org/) (**PyPI**) so others can just `pip install yourscript` with minimal fuss.
 
-> Daunted by the numerous/tedious tutorials for `distutils`, `setuptools` and the [Python Package Index](https://pypi.org/) (**PyPI**)?
+`easyPyPI` is mainly intended at Pythonistas haven't published to **PyPI** before or have, but (like the author) thought "There *must* be an easier way than this!".
 
-`easyPyPI` is a simple, one-size-fits-all solution that caters for 87.3% of use cases (*Ed - really?!!*).  It's aimed at Pythonistas who've never published to **PyPI** or have, but thought "There *must* be an easier way than this!".
+![Before easyPyPI](https://media.giphy.com/media/XIqCQx02E1U9W/giphy.gif)
 
-![Before](https://media.giphy.com/media/XIqCQx02E1U9W/giphy.gif)
-
-Well now there is.  Just install `easyPyPI`, import it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
+Just install `easyPyPI`, run it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
 
     pip install easypypi
-
-    >>> import easypypi
+    python.exe -m easypypi.
 
 With `easyPyPI` you don't have to waste your time (as I did...):
 
@@ -31,7 +28,7 @@ With `easyPyPI` you don't have to waste your time (as I did...):
 Enjoy!
 
 
-![After](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
+![After easyPyPI](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
 
 
 And and if you find `easypypi` helpful, please feel free to:
