@@ -30,8 +30,8 @@ class Session(CleverDict):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.create_config_file()
-        self.load_value("script_path_str")
-        if not self.script_path_str:  # Placeholder for final setup.py path
+        if not self.load_value("script_path_str"):
+            # Placeholder for final setup.py path:
             self.script_path_str = os.getcwd()
         self.here_path_str = str(Path(__file__).parent)
         with open(self.here_path / "setup_template.py", "r") as file:
@@ -53,6 +53,24 @@ class Session(CleverDict):
         print(f"✓ '{key}' updated in {Session.config_path}")
         # TODO: Save password securely e.g. with keyring
 
+    def load_value(self, key):
+        """
+        Loads a value from the config file and updates the relevant attribute.
+        Also returns the value, or None.
+        """
+        try:
+            with open(Session.config_path, "r") as file:
+                value = json.load(file).get(key)
+                if value:
+                    setattr(self, key, value)
+                    return value
+                else:
+                    print(f"\n⚠   Failed to find '{key}' in:\n    {Session.config_path}")
+
+        except (json.decoder.JSONDecodeError, FileNotFoundError):
+            # e.g. if file is empty or doesn't exist
+            return
+
     def create_config_file(self):
         """
         Uses click to find & create a platform-appropriate easyPyPI folder, then
@@ -71,20 +89,12 @@ class Session(CleverDict):
             json.dump({"author": ""}, file)  # Create skeleton .json file
         print(f"Created a new config file: {Session.config_path}")
 
-    def load_value(self, key):
+    def delete_config_file(self):
         """
-        Loads a value from the config file and updates the relevant attribute.
+        Deletes the easyPyPI config file e.g. in case of corruption.
+        Creating a new Session object will automatically recreate a fresh one.
         """
-        try:
-            with open(Session.config_path, "r") as file:
-                value = json.load(file).get(key)
-                if value:
-                    setattr(self, key, value)
-                else:
-                    print(f"\n⚠   Failed to find '{key}' in:\n    {Session.config_path}")
-        except (json.decoder.JSONDecodeError, FileNotFoundError):
-            # e.g. if file is empty or doesn't exist
-            return
+        os.remove(Session.config_path)
 
     @property
     def script_path(self):
@@ -108,13 +118,6 @@ class Session(CleverDict):
         """
         return Path(self.here_path_str)
 
-    def delete_config_file(self):
-        """
-        Deletes the easyPyPI config file e.g. in case of corruption.
-        Creating a new Session object will automatically recreate a fresh one.
-        """
-        os.remove(Session.config_path)
-
     def get_default_package_name(self):
         return "as_easy_as_pie"
 
@@ -125,8 +128,8 @@ class Session(CleverDict):
         return
 
     def get_default_url(self):
-        default = f"https://github.com/{self.load_value('github_id')}"
-        return default + f"/{self.load_value('package_name')}"
+        default = f"https://github.com/{self.github_id}"
+        return default + f"/{self.package_name}"
 
     def get_default_description(self):
         return
@@ -138,9 +141,9 @@ class Session(CleverDict):
         return
 
     def get_default_keywords(self):
-        default = f"{self.load_value('package_name')}, "
-        default += f"{self.load_value('author')}, "
-        return default + f"{self.load_value('github_id')}, "
+        default = f"{self.package_name}, "
+        default += f"{self.author}, "
+        return default + f"{self.github_id}, "
 
     def get_default_requirements(self):
         return "cleverdict, "
@@ -150,15 +153,15 @@ class Session(CleverDict):
         Check config file for previous values.  If no value is set, prompts for
         a value and updates the relevant Session attribute.
         """
-        prompts = {"PACKAGE_NAME": "Please enter a name for this package:",
-                   "VERSION": "Please enter latest version number:",
-                   "GITHUB_ID": "Please enter your Github ID:",
-                   "URL": "Please enter a link to the package repository:",
-                   "DESCRIPTION": "Please enter a description:",
-                   "AUTHOR": "Please the full name of the author:",
-                   "EMAIL": "Please enter an email address for the author:",
-                   "KEYWORDS": "Please enter some keywords separated by a comma:",
-                   "REQUIREMENTS": "Please enter any packages/modules that absolutely need to be installed for yours to work, separated by commas:"}
+        prompts = {"package_name": "Please enter a name for this package:",
+                   "version": "Please enter latest version number:",
+                   "github_id": "Please enter your Github or main repository ID:",
+                   "url": "Please enter a link to the package repository:",
+                   "description": "Please enter a description:",
+                   "author": "Please the full name of the author:",
+                   "email": "Please enter an email address for the author:",
+                   "keywords": "Please enter some keywords separated by a comma:",
+                   "requirements": "Please enter any packages/modules that absolutely need to be installed for yours to work, separated by commas:"}
         for key, prompt in prompts.items():
             default = self.load_value(key)
             if not default:
@@ -166,6 +169,7 @@ class Session(CleverDict):
                 default = func()
             old_line_starts = key.upper() + " = "
             new = sg.popup_get_text(prompt, default_text = default, **sg_kwargs)
+            setattr(self, key, new)
             self.script = update_line(self.script, old_line_starts, new)
 
     def get_classifiers(self):
@@ -208,7 +212,7 @@ class Session(CleverDict):
                 webbrowser.open(event)
             if LICENSE:
                 LICENSE = finalise_license(LICENSE)
-            SCRIPT = update_line(SCRIPT, "LICENSE = ", LICENSE.name)
+            self.SCRIPT = update_line(SCRIPT, "LICENSE = ", LICENSE.name)
 
 ### STATIC METHODS
 
