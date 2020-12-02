@@ -12,12 +12,9 @@ from cleverdict import CleverDict
 from shared_functions import create_file, update_line
 from classifiers import classifier_list
 from licenses import licenses_dict
-from setup_template import (author, CLASSIFIERS, DESCRIPTION, EMAIL, github_id,
-                            HERE, KEYWORDS, LICENSE, package_name,
-                            REQUIREMENTS, URL, VERSION)
-
-# Global keyword arguments for PySimpleGUI:
-sg_kwargs = {"title": "easyPyPI", "keep_on_top": True}
+from setup_template import (AUTHOR, CLASSIFIERS, DESCRIPTION, EMAIL, GITHUB_ID,
+                            KEYWORDS, LICENSE, PACKAGE_NAME, REQUIREMENTS, URL,
+                            VERSION, HERE)
 
 class Session(CleverDict):
     """
@@ -34,8 +31,11 @@ class Session(CleverDict):
         super().__init__(**kwargs)
         self.create_config_file()
         self.load_value("script_path_str")
-        if not self.script_path_str:
+        if not self.script_path_str:  # Placeholder for final setup.py path
             self.script_path_str = os.getcwd()
+        self.here_path_str = str(Path(__file__).parent)
+        with open(self.here_path / "setup_template.py", "r") as file:
+            self.script = file.readlines()
 
     def __str__(self):
         output = self.info(as_str=True)
@@ -78,7 +78,10 @@ class Session(CleverDict):
         try:
             with open(Session.config_path, "r") as file:
                 value = json.load(file).get(key)
-                setattr(self, key, value)
+                if value:
+                    setattr(self, key, value)
+                else:
+                    print(f"\n⚠   Failed to find '{key}' in:\n    {Session.config_path}")
         except (json.decoder.JSONDecodeError, FileNotFoundError):
             # e.g. if file is empty or doesn't exist
             return
@@ -93,6 +96,17 @@ class Session(CleverDict):
         is used for deciding what attributes get auto-saved to the config file.
         """
         return Path(self.script_path_str)
+
+    @property
+    def here_path(self):
+        """
+        json.dump can't serialise pathlib objects so this method creates them
+        from here_path_str.
+
+        This approach ensures the property doesn't appear in .get_aliases which
+        is used for deciding what attributes get auto-saved to the config file.
+        """
+        return Path(self.here_path_str)
 
     def delete_config_file(self):
         """
@@ -146,7 +160,7 @@ class Session(CleverDict):
                    "KEYWORDS": "Please enter some keywords separated by a comma:",
                    "REQUIREMENTS": "Please enter any packages/modules that absolutely need to be installed for yours to work, separated by commas:"}
         for key, prompt in prompts.items():
-            default = self.load_value(prompt)
+            default = self.load_value(key)
             if not default:
                 func = getattr(self, "get_default_" + key.lower())
                 default = func()
@@ -304,8 +318,6 @@ def copy_existing_files():
             shutil.copy(file, new_file)
             print(f"✓ Copied {file.name} to {new_file.parent}")
 
-
-
 def twine_setup():
     """
     Prompts for PyPI account setup and sets environment variables for Twine use.
@@ -378,16 +390,27 @@ def upload_to_github():
     # TODO
     # https://mechanicalsoup.readthedocs.io/
 
-if __name__ == "__main__":
-    print = sg.Print
+def start_gui(redirect=False):
+    """
+    Toggles between normal output and routing stdout/stderr to PySimpleGUI
+    """
+    if redirect:
+        global print
+        print = sg.Print
+    # Common keyword arguments for PySimpleGUI popups:
+    global sg_kwargs
+    sg_kwargs = {"title": "easyPyPI", "keep_on_top": True, "icon": HERE / "easypypi.ico"}
     sg.change_look_and_feel('DarkAmber')
-    sg.set_options(message_box_line_width=80, debug_win_size=(80,30),)
-    # Redirect stdout and stderr to Debug Window
-    print(do_not_reroute_stdout=False,  keep_on_top = True)
-    print(f"easyPyPI template files are locatedin:\n{HERE}")
-    with open(self.HERE / "setup_template.py", "r") as file:
-        self.SCRIPT = file.readlines()
-    create_new_script()
+    # Redirect stdout and stderr to Debug Window:
+    sg.set_options(message_box_line_width=80, debug_win_size=(100,30),)
+    options = {"do_not_reroute_stdout": False, "keep_on_top": True}
+    print(f"easyPyPI template files are located in:\n{Path(__file__).parent}", **options if redirect else {})
+
+start_gui(redirect=False)
+
+if __name__ == "__main__":
+    self = Session()
+    self.get_metadata()
     update_config_file()
     create_folder_structure()
     create_essential_files()
