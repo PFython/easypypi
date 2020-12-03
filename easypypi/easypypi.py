@@ -41,6 +41,39 @@ class Session(CleverDict):
         output = self.info(as_str=True)
         return output.replace("CleverDict", type(self).__name__, 1)
 
+    def load_config_file(self):
+        """ Loads the contents of a pre-existing config file as attributes """
+        with open(Session.config_path, "r") as file:
+                values = json.load(file)
+        for key, value in values.items():
+            setattr(self, key, value)
+
+    def create_config_file(self):
+        """
+        Uses click to find & create a platform-appropriate easyPyPI folder, then
+        creates a skeleton json file there to store persistent data (if one
+        doesn't already exist, or if the current one is empty).
+        """
+        if self.config_path.is_file() and self.config_path.stat().st_size:
+            # config file exists and isn't empty
+            self.load_config_file()
+            return
+        try:
+            os.makedirs(self.config_path.parent)
+            print(f"Folder created: {self.config_path.parent}")
+        except FileExistsError:
+            pass
+        with open(self.config_path, "w") as file:
+            json.dump({"author": ""}, file)  # Create skeleton .json file
+        print(f"Created a new config file: {self.config_path}")
+
+    def delete_config_file(self):
+        """
+        Deletes the easyPyPI config file e.g. in case of corruption.
+        Creating a new Session object will automatically recreate a fresh one.
+        """
+        os.remove(self.config_path)
+
     def save(self, key: str, value: any):
         """
         This method is called by CleverDict whenever a value or attribute
@@ -66,35 +99,9 @@ class Session(CleverDict):
                     return value
                 else:
                     print(f"\n⚠   Failed to find '{key}' in:\n    {Session.config_path}")
-
         except (json.decoder.JSONDecodeError, FileNotFoundError):
             # e.g. if file is empty or doesn't exist
             return
-
-    def create_config_file(self):
-        """
-        Uses click to find & create a platform-appropriate easyPyPI folder, then
-        creates a skeleton json file there to store persistent data (if one
-        doesn't already exist, or if the current one is empty).
-        """
-        try:
-            os.makedirs(Session.config_path.parent)
-            print(f"Folder created: {Session.config_path.parent}")
-        except FileExistsError:
-            pass
-        if Session.config_path.is_file() and Session.config_path.stat().st_size:
-            # config file exists and isn't empty
-            return
-        with open(Session.config_path, "w") as file:
-            json.dump({"author": ""}, file)  # Create skeleton .json file
-        print(f"Created a new config file: {Session.config_path}")
-
-    def delete_config_file(self):
-        """
-        Deletes the easyPyPI config file e.g. in case of corruption.
-        Creating a new Session object will automatically recreate a fresh one.
-        """
-        os.remove(Session.config_path)
 
     @property
     def script_path(self):
@@ -153,7 +160,7 @@ class Session(CleverDict):
         Check config file for previous values.  If no value is set, prompts for
         a value and updates the relevant Session attribute.
         """
-        prompts = {"package_name": "Please enter a name for this package:",
+        prompts = {"package_name": "Please enter a name for this package (all lowercase, underscores if needed):",
                    "version": "Please enter latest version number:",
                    "github_id": "Please enter your Github or main repository ID:",
                    "url": "Please enter a link to the package repository:",
@@ -169,9 +176,10 @@ class Session(CleverDict):
                 default = func()
             old_line_starts = key.upper() + " = "
             new = sg.popup_get_text(prompt, default_text = default, **sg_kwargs)
+            if new is None:
+                quit()
             setattr(self, key, new)
             self.script = update_line(self.script, old_line_starts, new)
-        # TODO: config overwritten between session?
 
     def get_classifiers(self):
         """
@@ -181,13 +189,20 @@ class Session(CleverDict):
         """
         self.load_value("classifiers")
         if not hasattr(self, "classifiers"):
-            self.classifiers = []
+            self.classifiers = ""
+        if type(self.classifiers) == str:
+            self.classifiers =  [x.strip() for x in self.classifiers.split(",")]
+            self.classifiers = list(set(self.classifiers))
         else:  # str -> list
             self.classifiers = eval(self.classifiers)
         for group in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split("|"):
             choices = [x for x in classifier_list if x.startswith(group)]
-            self.classifiers.extend(prompt_with_checkboxes(group, choices))
+            selection = prompt_with_checkboxes(group, choices)
+            if selection == "Skip":
+                break
+            self.classifiers.extend(selection)
         self.classifiers = ", ".join(self.classifiers)
+        # TODO: Pre-select checkboxes based on last saved config file
 
     def get_license(self):
         """
@@ -199,21 +214,71 @@ class Session(CleverDict):
         layout = [[sg.Text(text=f"Please select a License for your package:")]]
         for license in licenses:
             layout.extend([[sg.Radio(license.key.upper(), "licenses", font="bold 12" ,tooltip = license.description, size = (10,1)), sg.Text(text=license.html_url, enable_events=True, size = (40,1))]])
-        layout += [[sg.Button("OK"), sg.Button("Skip")]]
+        layout += [[sg.Button("OK")]]
         window = sg.Window("easypypi", layout, size = (600,400),resizable=True)
         while True:
             event, values  =  window.read(close=True)
             if event == "OK" and any(values.values()):
                 window.close()
                 self.license = [licenses[k] for k,v in values.items() if v][0]
-            if event == "Skip" or not event:
+                break
+            if event:
+                if "http" in event:
+                    webbrowser.open(event)
+            else:
                 window.close()
                 self.license = licenses[0]  # Default license
-            if "http" in event:
-                webbrowser.open(event)
-            if hasattr(self, "license"):
-                finalise_license(LICENSE)
-            self.script = update_line(self.script, "LICENSE = ", LICENSE.name)
+                print(f"\nDefault license selected: {self.license.name}")
+                break
+        self.finalise_license()
+        self.script = update_line(self.script, "LICENSE = ", self.license.name)
+        # TODO: Pre-select radio button based on last saved config file
+
+    def finalise_license(self):
+        """ Make simple updates based on license.implementation instructions """
+        year = str(datetime.datetime.now().year)
+        replacements = dict()
+        if self.license.key == 'lgpl-3.0':
+            self.license.body += '\nThis license is an additional set of permissions to the <a href="/licenses/gpl-3.0">GNU GPLv3</a> license which is reproduced below:\n\n'
+            gpl = [CleverDict(x) for x in licenses_dict if x['key'] == 'gpl-3.0'][0]
+            self.license.body += gpl.body
+        if self.license.key == "mit":
+            replacements = {"[year]": year,
+                            "[fullname]": self.author}
+        if self.license.key in ['gpl-3.0', 'lgpl-3.0', 'agpl-3.0']:
+            replacements = {"<year>": year,
+                            "<name of author>": self.author,
+                            "<program>": self.package_name,
+                            "Also add information on how to contact you by electronic and paper mail.": f"    Contact email: {self.email}",
+                            "<one line to give the program's name and a brief idea of what it does.>": f"{self.package_name}: {self.description}"}
+        if self.license.key == "apache-2.0":
+            replacements = {"[yyyy]": year,
+                            "[name of copyright owner]": self.author}
+        if replacements:
+            for old, new in replacements.items():
+                self.license.body = self.license.body.replace(old, new)
+        return license
+
+    def create_essential_files(self):
+        """
+        Creates essential files for the new package:
+        /setup.py
+        /README.md
+        /LICENSE
+        /package_name/__init__.py
+        /package_name/package_name.py
+        /package_name/test_PACKAGE_NAME.py
+        """
+        self.package_path = self.script_path / self.package_name
+        create_file(self.package_path / self.package_name / "__init__.py", [f"from {self.package_name} import *"])
+        create_file(self.package_path / self.package_name / (self.package_name + ".py"), [f"# {self.package_name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
+        create_file(self.package_path / self.package_name / ("test_" +self.package_name + ".py"), [f"# Tests for {self.package_name}\n", "\n", f"from {self.package_name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
+        create_file (self.package_path / "README.md", [f"# {self.package_name}\n", DESCRIPTION+"\n\n{self.description}", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {self.author} {self.email}\n\n", "### CREDITS\n\n"])
+        # setup.py and LICENSE should always be overwritten as most likely to
+        # include changes from running easyPiPY.
+        # The other files are just bare-bones initially, created as placeholders.
+        create_file(self.package_path / "setup.py", self.script, overwrite = True)
+        create_file(self.package_path / "LICENSE", self.license.body, overwrite=True)
 
 ### STATIC METHODS
 
@@ -237,40 +302,13 @@ def prompt_with_checkboxes(group,choices):
     """
     prompt = [sg.Text(text=f"Please select any relevant classifiers in the {group.title()} group:")]
     layout = [[sg.Checkbox(text=choice)] for choice in choices]
-    buttons = [sg.Button("OK"), sg.Button("Skip")]
+    buttons = [sg.Button("Next"), sg.Button("Skip Remaining Groups")]
     event, checked  =  sg.Window("easypypi", [prompt,[sg.Column(layout, scrollable=True, vertical_scroll_only=True, size= (600,300))], buttons], size= (600,400),resizable=True).read(close=True)
-    if event == "OK":
+    if event == "Next":
         return [choices[k] for k,v in checked.items() if v]
     else:
-        return []
-
-
-    # TODO: Select checkboxes based on config file
-
-def finalise_license(license):
-    """ Make simple updates based on license.implementation instructions """
-    year = str(datetime.datetime.now().year)
-    replacements = dict()
-    if license.key == 'lgpl-3.0':
-        license.body += '\nThis license is an additional set of permissions to the <a href="/licenses/gpl-3.0">GNU GPLv3</a> license which is reproduced below:\n\n'
-        gpl = [CleverDict(x) for x in licenses_dict if x['key'] == 'gpl-3.0'][0]
-        license.body += gpl.body
-    if license.key == "mit":
-        replacements = {"[year]": year,
-                        "[fullname]": author}
-    if license.key in ['gpl-3.0', 'lgpl-3.0', 'agpl-3.0']:
-        replacements = {"<year>": year,
-                        "<name of author>": author,
-                        "<program>": package_name,
-                        "Also add information on how to contact you by electronic and paper mail.": f"    Contact email: {EMAIL}",
-                        "<one line to give the program's name and a brief idea of what it does.>": f"{package_name}: {DESCRIPTION}"}
-    if license.key == "apache-2.0":
-        replacements = {"[yyyy]": year,
-                        "[name of copyright owner]": author}
-    if replacements:
-        for old, new in replacements.items():
-            license.body = license.body.replace(old, new)
-    return license
+        return "Skip"
+    # TODO: Pre-select checkboxes based on last saved config file
 
 def create_folder_structure():
     """
@@ -286,26 +324,6 @@ def create_folder_structure():
     except FileExistsError:
         print(f"Folder already exists {new_folder}")
 
-def create_essential_files():
-    """
-    Creates essential files for the new package:
-    /setup.py
-    /README.md
-    /LICENSE
-    /package_name/__init__.py
-    /package_name/package_name.py
-    /package_name/test_PACKAGE_NAME.py
-    """
-    package_path = script_path / package_name
-    create_file(package_path / package_name / "__init__.py", [f"from {package_name} import *"])
-    create_file(package_path / package_name / (package_name + ".py"), [f"# {package_name} by {author}\n", f"# {datetime.datetime.now()}\n"])
-    create_file(package_path / package_name / ("test_" +package_name + ".py"), [f"# Tests for {package_name}\n", "\n", f"from {package_name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
-    create_file (package_path / "README.md", [f"# {package_name}\n", DESCRIPTION+"\n\n", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {author} {EMAIL}\n\n", "### CREDITS\n\n"])
-    # setup.py and LICENSE should always be overwritten as most likely to
-    # include changes from running easyPiPY.
-    # The other files are just bare-bones initially, created as placeholders.
-    create_file(package_path / "setup.py", SCRIPT, overwrite = True)
-    create_file(package_path / "LICENSE", LICENSE.body, overwrite=True)
 
 def copy_existing_files():
     """
@@ -392,8 +410,7 @@ def upload_with_twine():
 def upload_to_github():
     """ Uploads package as a repository on Github """
     return
-    # TODO
-    # https://mechanicalsoup.readthedocs.io/
+    # TODO: Automate registration with https://mechanicalsoup.readthedocs.io/
 
 def start_gui(redirect=False):
     """
@@ -431,8 +448,6 @@ if __name__ == "__main__":
 
 
     # TODO: Entry point for upversioning/updating package later on
-
-    # TODO: Redirect os.system output to PySimpleGui Debug Window?
 
     # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
     # Maybe refactor to use .pypirc config files?
