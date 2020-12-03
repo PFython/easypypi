@@ -15,7 +15,7 @@ Well now there is.  Just install `easyPyPI`, run it, and follow the prompts.  No
 
 With `easyPyPI` you don't have to spend hours...
 
-- Reading tutorials about `distutils` only to find `setuptools` is what you need.
+- Reading tutorials about `distutils` only to realise `setuptools` is what you need.
 - Reading yet more tutorials just to work out the essential steps (below).
 - Manually creating a folder structure and moving your script(s) there.
 - Manually creating a skeleton `README.md`
