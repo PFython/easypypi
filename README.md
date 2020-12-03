@@ -21,11 +21,11 @@ With `easyPyPI` you don't have to spend hours...
 - Manually creating a skeleton `README.md`
 - Manually creating a skeleton `__init__.py`
 - Manually creating a skeleton `test_yourscript.py`
-- Manually creating a `LICENSE`
-- Manually creating `setup.py` and wondering what on earth to put in it
-- Remembering to update your Version number each time
+- Manually creating and updating a `LICENSE`
+- Manually creating a `setup.py` script and wondering what on earth to put in it
+- Remembering to update your Version number each time you publish
 - Running `setup.py` in just the right way to create your distribution files
-- Installing and running `twine` in just the right way to upload your package to **Test PyPI** / **PyPI**
+- Installing and running `twine` in just the right way to upload your package to **Test PyPI** then **PyPI**
 
 Enjoy!
 
