@@ -16,11 +16,10 @@ from setup_template import (AUTHOR, CLASSIFIERS, DESCRIPTION, EMAIL, GITHUB_ID,
                             KEYWORDS, LICENSE, PACKAGE_NAME, REQUIREMENTS, URL,
                             VERSION, HERE)
 
-class Session(CleverDict):
+class Package(CleverDict):
     """
-    Stores information about the current project as well as persistent
-    variables such as email address that are unlikely to change often
-    for a typical user.
+    Methods and data relating to a Python module/package in preparation for
+    publishing on the Python Package Index (PyPI).
 
     Makes use of CleverDict's auto-save feature to store values in a config
     file, and .get_aliases() to keep a track of newly created attributes.
@@ -43,7 +42,7 @@ class Session(CleverDict):
 
     def load_config_file(self):
         """ Loads the contents of a pre-existing config file as attributes """
-        with open(Session.config_path, "r") as file:
+        with open(Package.config_path, "r") as file:
                 values = json.load(file)
         for key, value in values.items():
             setattr(self, key, value)
@@ -70,7 +69,7 @@ class Session(CleverDict):
     def delete_config_file(self):
         """
         Deletes the easyPyPI config file e.g. in case of corruption.
-        Creating a new Session object will automatically recreate a fresh one.
+        Creating a new Package object will automatically recreate a fresh one.
         """
         os.remove(self.config_path)
 
@@ -79,11 +78,11 @@ class Session(CleverDict):
         This method is called by CleverDict whenever a value or attribute
         changes.  Used here to update the config file automatically.
         """
-        with open(Session.config_path, "w") as file:
+        with open(Package.config_path, "w") as file:
             # CleverDict.get_aliases finds attributes created after __init__:
             fields_dict = {x: self.get(x) for x in self.get_aliases() if "PASSWORD" not in x}
             json.dump(fields_dict, file)
-        print(f"✓ '{key}' updated in {Session.config_path}")
+        print(f"✓ '{key}' updated in {Package.config_path}")
         # TODO: Save password securely e.g. with keyring
 
     def load_value(self, key):
@@ -92,13 +91,13 @@ class Session(CleverDict):
         Also returns the value, or None.
         """
         try:
-            with open(Session.config_path, "r") as file:
+            with open(Package.config_path, "r") as file:
                 value = json.load(file).get(key)
                 if value:
                     setattr(self, key, value)
                     return value
                 else:
-                    print(f"\n⚠   Failed to find '{key}' in:\n    {Session.config_path}")
+                    print(f"\n⚠   Failed to find '{key}' in:\n    {Package.config_path}")
         except (json.decoder.JSONDecodeError, FileNotFoundError):
             # e.g. if file is empty or doesn't exist
             return
@@ -125,7 +124,7 @@ class Session(CleverDict):
         """
         return Path(self.here_path_str)
 
-    def get_default_package_name(self):
+    def get_default_name(self):
         return "as_easy_as_pie"
 
     def get_default_version(self):
@@ -136,7 +135,7 @@ class Session(CleverDict):
 
     def get_default_url(self):
         default = f"https://github.com/{self.github_id}"
-        return default + f"/{self.package_name}"
+        return default + f"/{self.name}"
 
     def get_default_description(self):
         return
@@ -148,7 +147,7 @@ class Session(CleverDict):
         return
 
     def get_default_keywords(self):
-        default = f"{self.package_name}, "
+        default = f"{self.name}, "
         default += f"{self.author}, "
         return default + f"{self.github_id}, "
 
@@ -158,9 +157,9 @@ class Session(CleverDict):
     def get_metadata(self):
         """
         Check config file for previous values.  If no value is set, prompts for
-        a value and updates the relevant Session attribute.
+        a value and updates the relevant Package attribute.
         """
-        prompts = {"package_name": "Please enter a name for this package (all lowercase, underscores if needed):",
+        prompts = {"name": "Please enter a name for this package (all lowercase, underscores if needed):",
                    "version": "Please enter latest version number:",
                    "github_id": "Please enter your Github or main repository ID:",
                    "url": "Please enter a link to the package repository:",
@@ -248,9 +247,9 @@ class Session(CleverDict):
         if self.license.key in ['gpl-3.0', 'lgpl-3.0', 'agpl-3.0']:
             replacements = {"<year>": year,
                             "<name of author>": self.author,
-                            "<program>": self.package_name,
+                            "<program>": self.name,
                             "Also add information on how to contact you by electronic and paper mail.": f"    Contact email: {self.email}",
-                            "<one line to give the program's name and a brief idea of what it does.>": f"{self.package_name}: {self.description}"}
+                            "<one line to give the program's name and a brief idea of what it does.>": f"{self.name}: {self.description}"}
         if self.license.key == "apache-2.0":
             replacements = {"[yyyy]": year,
                             "[name of copyright owner]": self.author}
@@ -258,6 +257,19 @@ class Session(CleverDict):
             for old, new in replacements.items():
                 self.license.body = self.license.body.replace(old, new)
         return license
+
+    def create_folder_structure(self):
+        """
+        Creates skeleton folder structure for a package and starter files.
+        Updates global variable SCRIPT_PATH.
+        """
+        script_path  = Path(sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = self.script_path, **sg_kwargs))
+        new_folder = script_path / self.name / self.name
+        try:
+            os.makedirs(new_folder)
+            print(f"Created package folder {new_folder}")
+        except FileExistsError:
+            print(f"Folder already exists {new_folder}")
 
     def create_essential_files(self):
         """
@@ -269,16 +281,99 @@ class Session(CleverDict):
         /package_name/package_name.py
         /package_name/test_PACKAGE_NAME.py
         """
-        self.package_path = self.script_path / self.package_name
-        create_file(self.package_path / self.package_name / "__init__.py", [f"from {self.package_name} import *"])
-        create_file(self.package_path / self.package_name / (self.package_name + ".py"), [f"# {self.package_name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
-        create_file(self.package_path / self.package_name / ("test_" +self.package_name + ".py"), [f"# Tests for {self.package_name}\n", "\n", f"from {self.package_name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
-        create_file (self.package_path / "README.md", [f"# {self.package_name}\n", DESCRIPTION+"\n\n{self.description}", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {self.author} {self.email}\n\n", "### CREDITS\n\n"])
+        self.package_path = self.script_path / self.name
+        create_file(self.package_path / self.name / "__init__.py", [f"from {self.name} import *"])
+        create_file(self.package_path / self.name / (self.name + ".py"), [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
+        create_file(self.package_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from {self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
+        create_file (self.package_path / "README.md", [f"# {self.name}\n", DESCRIPTION+"\n\n{self.description}", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {self.author} {self.email}\n\n", "### CREDITS\n\n"])
         # setup.py and LICENSE should always be overwritten as most likely to
         # include changes from running easyPiPY.
         # The other files are just bare-bones initially, created as placeholders.
         create_file(self.package_path / "setup.py", self.script, overwrite = True)
         create_file(self.package_path / "LICENSE", self.license.body, overwrite=True)
+
+    def copy_other_files():
+        """
+        Prompts for additional files to copy over into the newly created folder:
+        \package_name\package_name
+        """
+        files = sg.popup_get_file("Please select any other files to copy to new project folder", **sg_kwargs, default_path="", multiple_files=True)
+        for file in [Path(x) for x in files.split(";")]:
+            new_file = self.script_path / self.name / self.name / file.name
+            if new_file.is_file():
+                response = sg.popup_yes_no(f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?", **sg_kwargs)
+                if response == "No":
+                    continue
+            if file.is_file():
+                shutil.copy(file, new_file)
+                print(f"✓ Copied {file.name} to {new_file.parent}")
+
+    def twine_setup(self):
+        """
+        Prompts for PyPI account setup and sets environment variables for Twine use.
+        """
+        if not load_value("twine_username"):
+            urls = {"Test PyPI": r"https://test.pypi.org/account/register/",
+                    "PyPI": r"https://pypi.org/account/register/"}
+            for repo, url in urls.items():
+                response = sg.popup_yes_no(f"Do you need to register for an account on {repo}?",  **sg_kwargs)
+                if response == "Yes":
+                    print("Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process.")
+                    webbrowser.open(url)
+        response = sg.popup_get_text(f"Please enter your Twine username:", default_text = load_value("twine_username"), **sg_kwargs)
+        if not response:
+            return
+        self.twine_username = response
+        response = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = load_value("twine_password"), **sg_kwargs)
+        if not response:
+            return
+        self.twine_password = response
+        # ! BUG - not picking up existing twine_username
+
+    def create_distribution_package(self):
+        """ Creates a .tar.gz distribution file with setup.py """
+        try:
+            import setuptools
+            import twine
+        except ImportError:
+            print("> Installing setuptools and twine if not already present...")
+            os.system('cmd /c "python -m pip install setuptools wheel twine"')
+        os.chdir(self.script_path / self.name)
+        print("> Running setup.py...")
+        os.system('cmd /c "setup.py sdist"')
+
+    def upload_with_twine(self):
+        """ Uploads to PyPI or Test PyPI with twine """
+        choice = sg.popup(f"Do you want to upload {self.name} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n", **sg_kwargs, custom_text=("Test PyPI", "PyPI"))
+        if choice == "PyPI":
+            params = "pypi"
+        if choice == "Test PyPI":
+            params = "testpypi"
+        if not choice:
+            return
+        params += f' dist/*-{self.version}.tar.gz '
+        if os.system(f'cmd /c "python -m twine upload --repository {params} -u {self.twine_username} -p {self.twine_password}"'):
+            # A return value of 1 (True) indicates an error
+            print("Problem uploading with Twine; probably either:")
+            print(" - An authentication issue.  Check your username and password?")
+            print(" - Using an existing version number.  Try a new version number?")
+        else:
+            url = "https://"
+            url += "" if choice == "PyPI" else "test."
+            webbrowser.open(url + f"pypi.org/project/{self.name}")
+            response = sg.popup_yes_no("Fantastic! Your package should now be available in your webbrowser.\n\nDo you want to install it now using pip?\n", **sg_kwargs)
+            if response == "Yes":
+                if not os.system(f'cmd /c "pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'):
+                    # A return value of 1 indicates an error, 0 indicates success
+                    print(f"{self.name} successfully installed using pip!\n")
+                    print(f"You can view its details using 'pip show {self.name}'")
+                    os.system(f'cmd /c "pip show {self.name}"')
+        # TODO: Automate registration: https://mechanicalsoup.readthedocs.io/
+
+    def upload_to_github(self):
+        """ Uploads package as a repository on Github """
+        return
+        # TODO: Automate registration: https://mechanicalsoup.readthedocs.io/
 
 ### STATIC METHODS
 
@@ -310,108 +405,6 @@ def prompt_with_checkboxes(group,choices):
         return "Skip"
     # TODO: Pre-select checkboxes based on last saved config file
 
-def create_folder_structure():
-    """
-    Creates skeleton folder structure for a package and starter files.
-    Updates global variable SCRIPT_PATH.
-    """
-    script_path  = Path(sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = script_path, **sg_kwargs))
-    update_config_file()
-    new_folder = script_path / package_name / package_name
-    try:
-        os.makedirs(new_folder)
-        print(f"Created package folder {new_folder}")
-    except FileExistsError:
-        print(f"Folder already exists {new_folder}")
-
-
-def copy_existing_files():
-    """
-    Prompts for additional files to copy over into the newly created folder:
-    \package_name\package_name
-    """
-    files = sg.popup_get_file("Please select any other files to copy to new project folder", **sg_kwargs, default_path="", multiple_files=True)
-    for file in [Path(x) for x in files.split(";")]:
-        new_file = script_path / package_name / package_name / file.name
-        if new_file.is_file():
-            response = sg.popup_yes_no(f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?", **sg_kwargs)
-            if response == "No":
-                continue
-        if file.is_file():
-            shutil.copy(file, new_file)
-            print(f"✓ Copied {file.name} to {new_file.parent}")
-
-def twine_setup():
-    """
-    Prompts for PyPI account setup and sets environment variables for Twine use.
-    """
-    if not load_value("TWINE_USERNAME"):
-        urls = {"Test PyPI": r"https://test.pypi.org/account/register/",
-                "PyPI": r"https://pypi.org/account/register/"}
-        for repo, url in urls.items():
-            response = sg.popup_yes_no(f"Do you need to register for an account on {repo}?",  **sg_kwargs)
-            if response == "Yes":
-                print("Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process.")
-                webbrowser.open(url)
-    response = sg.popup_get_text(f"Please enter your Twine username:", default_text = load_value("TWINE_USERNAME"), **sg_kwargs)
-    if not response:
-        return
-    global TWINE_USERNAME
-    TWINE_USERNAME = response
-    update_config_file()
-    response = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = load_value("TWINE_PASSWORD"), **sg_kwargs)
-    if not response:
-        return
-    global TWINE_PASSWORD
-    TWINE_PASSWORD = response
-    update_config_file()
-    # ! BUG - not picking up existing TWINE_USERNAME
-
-def create_distribution_package():
-    """ Creates a .tar.gz distribution file with setup.py """
-    try:
-        import setuptools
-        import twine
-    except ImportError:
-        print("> Installing setuptools and twine if not already present...")
-        os.system('cmd /c "python -m pip install setuptools wheel twine"')
-    os.chdir(script_path / package_name)
-    print("> Running setup.py...")
-    os.system('cmd /c "setup.py sdist"')
-
-def upload_with_twine():
-    """ Uploads to PyPI or Test PyPI with twine """
-    choice = sg.popup(f"Do you want to upload {package_name} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n", **sg_kwargs, custom_text=("Test PyPI", "PyPI"))
-    if choice == "PyPI":
-        params = "pypi"
-    if choice == "Test PyPI":
-        params = "testpypi"
-    if not choice:
-        return
-    params += f' dist/*-{VERSION}.tar.gz '
-    if os.system(f'cmd /c "python -m twine upload --repository {params} -u {TWINE_USERNAME} -p {TWINE_PASSWORD}"'):
-        # A return value of 1 (True) indicates an error
-        print("Problem uploading with Twine; probably either:")
-        print(" - An authentication issue.  Check your username and password?")
-        print(" - Using an existing version number.  Try a new version number?")
-    else:
-        url = "https://"
-        url += "" if choice == "PyPI" else "test."
-        webbrowser.open(url + f"pypi.org/project/{package_name}")
-        response = sg.popup_yes_no("Fantastic! Your package should now be available in your webbrowser.\n\nDo you want to install it now using pip?\n", **sg_kwargs)
-        if response == "Yes":
-            if not os.system(f'cmd /c "pip install -i https://test.pypi.org/simple/ {package_name} --upgrade"'):
-                # A return value of 1 indicates an error, 0 indicates success
-                print(f"{package_name} successfully installed using pip!\n")
-                print(f"You can view its details using 'pip show {package_name}'")
-                os.system(f'cmd /c "pip show {package_name}"')
-    # TODO: Automate registration with https://mechanicalsoup.readthedocs.io/
-
-def upload_to_github():
-    """ Uploads package as a repository on Github """
-    return
-    # TODO: Automate registration with https://mechanicalsoup.readthedocs.io/
-
 def start_gui(redirect=False):
     """
     Toggles between normal output and routing stdout/stderr to PySimpleGUI
@@ -428,37 +421,34 @@ def start_gui(redirect=False):
     options = {"do_not_reroute_stdout": False, "keep_on_top": True}
     print(f"easyPyPI template files are located in:\n{Path(__file__).parent}", **options if redirect else {})
 
-start_gui(redirect=False)
-
 if __name__ == "__main__":
-    self = Session()
+    start_gui(redirect=True)
+    self = Package()
     self.get_metadata()
     self.get_classifiers()
     self.get_license()
+    self.create_folder_structure()
+    self.create_essential_files()
+    self.copy_other_files()
+    self.twine_setup()
+    self.create_distribution_package()
+    self.upload_with_twine()
+    self.upload_to_github()
 
+### FUTURE ENHANCEMENTS
 
-    update_config_file()
-    create_folder_structure()
-    create_essential_files()
-    copy_existing_files()
-    twine_setup()
-    create_distribution_package()
-    upload_with_twine()
-    upload_to_github()
+# TODO: Clarify entry point for upversioning/updating package later on
 
+# TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
+# Maybe refactor to use .pypirc config files?
+# https://packaging.python.org/specifications/pypirc/#common-configurations
 
-    # TODO: Entry point for upversioning/updating package later on
+# TODO: Import defaults from README_template, test_template, init_template
+# to enable easier editing/personalisation, rather than hard coding their
+# template values as strings in create_essential_file().
 
-    # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
-    # Maybe refactor to use .pypirc config files?
-    # https://packaging.python.org/specifications/pypirc/#common-configurations
-
-    # TODO: Import defaults from README_template, test_template, init_template
-    # to enable easier editing/personalisation, rather than hard coding their
-    # template values as strings in create_essential_file().
-
-    # TODO: Offer other schemas in get_next_version_number e.g. date format:
-    # 2020.21.11
+# TODO: Offer other schemas in get_next_version_number e.g. date format:
+# 2020.21.11
 
 
 
