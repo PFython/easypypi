@@ -26,6 +26,7 @@ With `easyPyPI` you don't have to spend hours...
 - Remembering to update your Version number each time you publish
 - Running `setup.py` in just the right way to create your distribution files
 - Installing and running `twine` in just the right way to upload your package to **Test PyPI** then **PyPI**
+- Creating a .pypirc file for twine  to use
 
 Enjoy!
 
