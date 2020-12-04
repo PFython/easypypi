@@ -97,11 +97,10 @@ class Package(CleverDict):
         """
         with open(Package.config_path, "w") as file:
             # CleverDict.get_aliases finds attributes created after __init__:
-            fields_dict = {x: self.get(x) for x in self.get_aliases() if "PASSWORD" not in x}
+            fields_dict = {x: self.get(x) for x in self.get_aliases() if "password" not in x}
             json.dump(fields_dict, file)
         if key:
             print(f"✓ '{key}' updated in {Package.config_path}")
-        # TODO: Save password securely e.g. with keyring
 
     # def load_value(self, key):
     #     """
@@ -285,7 +284,6 @@ class Package(CleverDict):
         if replacements:
             for old, new in replacements.items():
                 self.license.body = self.license.body.replace(old, new)
-        return license
 
     def get_twine_credentials(self):
         """
@@ -299,15 +297,23 @@ class Package(CleverDict):
                 if response == "Yes":
                     print("Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process.")
                     webbrowser.open(url)
-        self.twine_username = sg.popup_get_text(f"Please enter your Twine username (not saved to file):", default_text = self.twine_username, **sg_kwargs)
+        self.twine_username = sg.popup_get_text(f"Please enter your Twine username:", default_text = self.get('twine_username'), **sg_kwargs)
         if not self.twine_username:
             quit()
-        self.twine_password = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = self.twine_password, **sg_kwargs)
-        if not self.twine_password:
-            quit()
+        self.get_twine_password()
         # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
         # Maybe refactor to use .pypirc config files?
         # https://packaging.python.org/specifications/pypirc/#common-configurations
+
+    def get_twine_password(self):
+        """
+        Prompt for twine password - not saved in config file or elsewhere
+        """
+        self.twine_password = sg.popup_get_text("Please enter your Twine/PyPI password (not saved to file):", password_char = "*", default_text = self.get('twine_password'), **sg_kwargs)
+        if not self.twine_password:
+            quit()
+        # TODO: Save password securely e.g. with keyring
+
 
     def create_folder_structure(self):
         """
@@ -326,7 +332,7 @@ class Package(CleverDict):
         except FileExistsError:
             print(f"Folder already exists {self.setup_path}")
 
-    def copy_other_files():
+    def copy_other_files(self):
         """
         Prompts for additional files to copy over into the newly created folder:
         \package_name\package_name
@@ -386,6 +392,8 @@ class Package(CleverDict):
             params = "testpypi"
         if not choice:
             return
+        if not self.get('twine_password'):
+            self.get_twine_password()
         params += f' dist/*-{self.version}.tar.gz '
         if os.system(f'cmd /c "python -m twine upload --repository {params} -u {self.twine_username} -p {self.twine_password}"'):
             # A return value of 1 (True) indicates an error
@@ -467,6 +475,7 @@ if __name__ == "__main__":
     else:
         self.version = get_next_version_number(self.version)
     self.create_essential_files()
+    # !BUG: script_lines not updating, so setup.py not populated
     self.run_setup_py()
     self.upload_with_twine()
     self.upload_to_github()

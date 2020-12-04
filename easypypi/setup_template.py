@@ -1,7 +1,7 @@
 from pathlib import Path
 from setuptools import setup, find_packages
 
-HERE = Path(__file__).parent.parent
+HERE = Path(__file__).parent
 PACKAGE_NAME = ""
 GITHUB_ID = ""
 VERSION = 0
