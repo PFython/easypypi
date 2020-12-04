@@ -16,6 +16,10 @@ from setup_template import (AUTHOR, CLASSIFIERS, DESCRIPTION, EMAIL, GITHUB_ID,
                             KEYWORDS, LICENSE, PACKAGE_NAME, REQUIREMENTS, URL,
                             VERSION, HERE)
 
+# Global keyword arguments for PySimpleGUI popups:
+sg_kwargs = {"title": "easyPyPI", "keep_on_top": True, "icon": HERE / "easypypi.ico"}
+
+
 class Package(CleverDict):
     """
     Methods and data relating to a Python module/package in preparation for
@@ -29,7 +33,7 @@ class Package(CleverDict):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.create_config_file()
-        if not self.load_value("setup_path_str"):
+        if not self.get("setup_path_str"):
             # Placeholder for final setup.py path:
             self.setup_path_str = os.getcwd()
         self.easypypi_path_str = str(Path(__file__).parent)
@@ -99,22 +103,22 @@ class Package(CleverDict):
             print(f"✓ '{key}' updated in {Package.config_path}")
         # TODO: Save password securely e.g. with keyring
 
-    def load_value(self, key):
-        """
-        Loads a value from the config file and updates the relevant attribute.
-        Also returns the value, or None.
-        """
-        try:
-            with open(Package.config_path, "r") as file:
-                value = json.load(file).get(key)
-                if value:
-                    setattr(self, key, value)
-                    return value
-                else:
-                    print(f"\n⚠   Failed to find '{key}' in:\n    {Package.config_path}")
-        except (json.decoder.JSONDecodeError, FileNotFoundError):
-            # e.g. if file is empty or doesn't exist
-            return
+    # def load_value(self, key):
+    #     """
+    #     Loads a value from the config file and updates the relevant attribute.
+    #     Also returns the value, or None.
+    #     """
+    #     try:
+    #         with open(Package.config_path, "r") as file:
+    #             value = json.load(file).get(key)
+    #             if value:
+    #                 setattr(self, key, value)
+    #                 return value
+    #             else:
+    #                 print(f"\n⚠   Failed to find '{key}' in:\n    {Package.config_path}")
+    #     except (json.decoder.JSONDecodeError, FileNotFoundError):
+    #         # e.g. if file is empty or doesn't exist
+    #         return
 
     @property
     def setup_path(self):
@@ -201,7 +205,7 @@ class Package(CleverDict):
                    "keywords": "Please enter some keywords separated by a comma:",
                    "requirements": "Please enter any packages/modules that absolutely need to be installed for yours to work, separated by commas:"}
         for key, prompt in prompts.items():
-            default = self.load_value(key)
+            default = self.get(key)
             if not default:
                 func = getattr(self, "get_default_" + key.lower())
                 default = func()
@@ -283,6 +287,28 @@ class Package(CleverDict):
                 self.license.body = self.license.body.replace(old, new)
         return license
 
+    def get_twine_credentials(self):
+        """
+        Prompts for PyPI account setup and sets environment variables for Twine use.
+        """
+        if not self.get("twine_username"):
+            urls = {"Test PyPI": r"https://test.pypi.org/account/register/",
+                    "PyPI": r"https://pypi.org/account/register/"}
+            for repo, url in urls.items():
+                response = sg.popup_yes_no(f"Do you need to register for an account on {repo}?",  **sg_kwargs)
+                if response == "Yes":
+                    print("Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process.")
+                    webbrowser.open(url)
+        self.twine_username = sg.popup_get_text(f"Please enter your Twine username (not saved to file):", default_text = self.twine_username), **sg_kwargs)
+        if not self.twine_username:
+            quit()
+        self.twine_password = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = self.twine_password), **sg_kwargs)
+        if not self.twine_password:
+            quit()
+        # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
+        # Maybe refactor to use .pypirc config files?
+        # https://packaging.python.org/specifications/pypirc/#common-configurations
+
     def create_folder_structure(self):
         """
         Creates skeleton folder structure for a package and starter files.
@@ -293,12 +319,12 @@ class Package(CleverDict):
             parent_path_str  = sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = self.setup_path, **sg_kwargs)
             if parent_path_str is None:
                 quit()
-        new_folder = setup_path / self.name / self.name
+        self.setup_path_str = str(Path(parent_path_str)/self.name)
         try:
-            os.makedirs(new_folder)
-            print(f"Created package folder {new_folder}")
+            os.makedirs(self.setup_path/self.name)
+            print(f"Created package folder {self.setup_path}")
         except FileExistsError:
-            print(f"Folder already exists {new_folder}")
+            print(f"Folder already exists {self.setup_path}")
 
     def copy_other_files():
         """
@@ -309,7 +335,7 @@ class Package(CleverDict):
         if files is None:
             quit()
         for file in [Path(x) for x in files.split(";")]:
-            new_file = self.setup_path / self.name / self.name / file.name
+            new_file = self.setup_path / self.name / file.name
             if new_file.is_file():
                 response = sg.popup_yes_no(f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?", **sg_kwargs)
                 if response == "No":
@@ -328,40 +354,18 @@ class Package(CleverDict):
         /package_name/package_name.py
         /package_name/test_PACKAGE_NAME.py
         """
-        self.package_path = self.setup_path_str / self.name
-        create_file(self.package_path / self.name / "__init__.py", [f"from {self.name} import *"])
-        create_file(self.package_path / self.name / (self.name + ".py"), [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
-        create_file(self.package_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from {self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
-        create_file (self.package_path / "README.md", [f"# {self.name}\n", DESCRIPTION+"\n\n{self.description}", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {self.author} {self.email}\n\n", "### CREDITS\n\n"])
-        # setup.py and LICENSE should always be overwritten as most likely to
-        # include changes from running easyPiPY.
-        # The other files are just bare-bones initially, created as placeholders.
-        create_file(self.package_path / "setup.py", self.script_lines, overwrite = True)
-        create_file(self.package_path / "LICENSE", self.license.body, overwrite=True)
+        # setup.py and LICENSE can be be overwritten as they're most likely to
+        # include changes from running easyPiPY and no actual code will be lost:
+        create_file(self.setup_path / "setup.py", self.script_lines, overwrite = True)
+        create_file(self.setup_path / "LICENSE", self.license.body, overwrite=True)
 
-    def twine_setup(self):
-        """
-        Prompts for PyPI account setup and sets environment variables for Twine use.
-        """
-        if not load_value("twine_username"):
-            urls = {"Test PyPI": r"https://test.pypi.org/account/register/",
-                    "PyPI": r"https://pypi.org/account/register/"}
-            for repo, url in urls.items():
-                response = sg.popup_yes_no(f"Do you need to register for an account on {repo}?",  **sg_kwargs)
-                if response == "Yes":
-                    print("Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process.")
-                    webbrowser.open(url)
-        response = sg.popup_get_text(f"Please enter your Twine username:", default_text = load_value("twine_username"), **sg_kwargs)
-        if not response:
-            return
-        self.twine_username = response
-        response = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = load_value("twine_password"), **sg_kwargs)
-        if not response:
-            return
-        self.twine_password = response
-        # ! BUG - not picking up existing twine_username
+        # The other files are just bare-bones initially, created as placeholders which can't then be overwritten by easyPyPI:
+        create_file(self.setup_path / self.name / "__init__.py", [f"from {self.name} import *"])
+        create_file(self.setup_path / self.name / (self.name + ".py"), [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
+        create_file(self.setup_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from {self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
+        create_file (self.setup_path / "README.md", [f"# `{self.name}`\n", "![Replace with your own inspirational logo here](https://github.com/PFython/easypypi/blob/main/easypypi.png?raw=true)\n", f"{self.description}\n", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {self.author} {self.email}\n\n", "### CREDITS\n\n"])
 
-    def create_distribution_package(self):
+    def run_setup_py(self):
         """ Creates a .tar.gz distribution file with setup.py """
         try:
             import setuptools
@@ -369,7 +373,7 @@ class Package(CleverDict):
         except ImportError:
             print("> Installing setuptools and twine if not already present...")
             os.system('cmd /c "python -m pip install setuptools wheel twine"')
-        os.chdir(self.setup_path / self.name)
+        os.chdir(self.setup_path)
         print("> Running setup.py...")
         os.system('cmd /c "setup.py sdist"')
 
@@ -443,9 +447,6 @@ def start_gui(**kwargs):
     if kwargs.get('redirect'):
         global print
         print = sg.Print
-    # Common keyword arguments for PySimpleGUI popups:
-    global sg_kwargs
-    sg_kwargs = {"title": "easyPyPI", "keep_on_top": True, "icon": HERE / "easypypi.ico"}
     sg.change_look_and_feel('DarkAmber')
     # Redirect stdout and stderr to Debug Window:
     sg.set_options(message_box_line_width=80, debug_win_size=(100,30),)
@@ -460,21 +461,17 @@ if __name__ == "__main__":
         self.get_metadata()
         self.get_classifiers()
         self.get_license()
+        self.get_twine_credentials()
         self.create_folder_structure()
         self.copy_other_files()
     else:
         self.version = get_next_version_number(self.version)
     self.create_essential_files()
-    self.twine_setup()
-    self.create_distribution_package()
+    self.run_setup_py()
     self.upload_with_twine()
     self.upload_to_github()
 
 ### FUTURE ENHANCEMENTS
-
-# TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
-# Maybe refactor to use .pypirc config files?
-# https://packaging.python.org/specifications/pypirc/#common-configurations
 
 # TODO: Import defaults from README_template, test_template, init_template
 # to enable easier editing/personalisation, rather than hard coding their
