@@ -299,10 +299,10 @@ class Package(CleverDict):
                 if response == "Yes":
                     print("Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process.")
                     webbrowser.open(url)
-        self.twine_username = sg.popup_get_text(f"Please enter your Twine username (not saved to file):", default_text = self.twine_username), **sg_kwargs)
+        self.twine_username = sg.popup_get_text(f"Please enter your Twine username (not saved to file):", default_text = self.twine_username, **sg_kwargs)
         if not self.twine_username:
             quit()
-        self.twine_password = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = self.twine_password), **sg_kwargs)
+        self.twine_password = sg.popup_get_text("Please enter your Twine/PyPI password:", password_char = "*", default_text = self.twine_password, **sg_kwargs)
         if not self.twine_password:
             quit()
         # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
