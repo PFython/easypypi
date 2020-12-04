@@ -26,14 +26,14 @@ With `easyPyPI` you don't have to spend hours...
 - Remembering to update your Version number each time you publish
 - Running `setup.py` in just the right way to create your distribution files
 - Installing and running `twine` in just the right way to upload your package to **Test PyPI** then **PyPI**
-- Setting environment variables or creating a `.pypirc` file for twine  to use
+- Setting environment variables or creating a `.pypirc` file for `twine`  to use
 
 Enjoy!
 
 
 ![](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
 
-And and if `easypypi` makes your life just a little bit easier, please feel free to return the favour and:
+If `easyPyPI` helps save you some time so you can focus on more important things, please do show your appreciation and feel free to:
 
 <a href="https://www.buymeacoffee.com/pfython" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" width="217px" ></a>
 

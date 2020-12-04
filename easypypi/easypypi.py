@@ -52,6 +52,8 @@ class Package(CleverDict):
                 values = json.load(file)
         for key, value in values.items():
             setattr(self, key, value)
+        if hasattr(self, "license"):
+            self.license = CleverDict(self.license)
 
     def create_config_file(self):
         """
@@ -369,7 +371,7 @@ class Package(CleverDict):
         create_file(self.setup_path / self.name / "__init__.py", [f"from {self.name} import *"])
         create_file(self.setup_path / self.name / (self.name + ".py"), [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
         create_file(self.setup_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from {self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
-        create_file (self.setup_path / "README.md", [f"# `{self.name}`\n", "![Replace with your own inspirational logo here](https://github.com/PFython/easypypi/blob/main/easypypi.png?raw=true)\n", f"{self.description}\n", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {self.author} {self.email}\n\n", "### CREDITS\n\n"])
+        create_file (self.setup_path / "README.md", [f'# `{self.name}`\n', '![Replace with your own inspirational logo here](https://github.com/PFython/easypypi/blob/main/easypypi.png?raw=true)\n', f'{self.description}\n', '### OVERVIEW\n', '\n', '### INSTALLATION\n', '\n', '```\n', f'pip install {self.name}\n', '```\n', '\n', '### BASIC USE\n', '\n', '```\n', f'import {self.name}\n', '```\n', '\n', '### UNDER THE BONNET\n', '\n', '### CONTRIBUTING\n', '\n', f'Contact {self.author}\n\n{self.email}\n', '\n', '### CREDITS'])
 
     def run_setup_py(self):
         """ Creates a .tar.gz distribution file with setup.py """
