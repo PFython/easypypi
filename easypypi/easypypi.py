@@ -29,12 +29,12 @@ class Package(CleverDict):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.create_config_file()
-        if not self.load_value("script_path_str"):
+        if not self.load_value("setup_path_str"):
             # Placeholder for final setup.py path:
-            self.script_path_str = os.getcwd()
-        self.here_path_str = str(Path(__file__).parent)
-        with open(self.here_path / "setup_template.py", "r") as file:
-            self.script = file.readlines()
+            self.setup_path_str = os.getcwd()
+        self.easypypi_path_str = str(Path(__file__).parent)
+        with open(self.easypypi_path / "setup_template.py", "r") as file:
+            self.script_lines = file.readlines()
 
     def __str__(self):
         output = self.info(as_str=True)
@@ -79,16 +79,24 @@ class Package(CleverDict):
         """
         os.remove(cls.config_path)
 
-    def save(self, key: str, value: any):
+    def save(self, key = None, value = None):
         """
         This method is called by CleverDict whenever a value or attribute
         changes.  Used here to update the config file automatically.
+
+        NB because values are loaded from the config file into attributes during
+        __init__, if you want to DELETE an entry from the config file e.g.
+        during debugging you'll need to delete the attribute then run .save:
+
+        del self.x
+        self.save()
         """
         with open(Package.config_path, "w") as file:
             # CleverDict.get_aliases finds attributes created after __init__:
             fields_dict = {x: self.get(x) for x in self.get_aliases() if "PASSWORD" not in x}
             json.dump(fields_dict, file)
-        print(f"✓ '{key}' updated in {Package.config_path}")
+        if key:
+            print(f"✓ '{key}' updated in {Package.config_path}")
         # TODO: Save password securely e.g. with keyring
 
     def load_value(self, key):
@@ -109,26 +117,26 @@ class Package(CleverDict):
             return
 
     @property
-    def script_path(self):
+    def setup_path(self):
         """
         json.dump can't serialise pathlib objects so this method creates them
-        from script_path_str.
+        from setup_path_str.
 
         This approach ensures the property doesn't appear in .get_aliases which
         is used for deciding what attributes get auto-saved to the config file.
         """
-        return Path(self.script_path_str)
+        return Path(self.setup_path_str)
 
     @property
-    def here_path(self):
+    def easypypi_path(self):
         """
         json.dump can't serialise pathlib objects so this method creates them
-        from here_path_str.
+        from easypypi_path_str.
 
         This approach ensures the property doesn't appear in .get_aliases which
         is used for deciding what attributes get auto-saved to the config file.
         """
-        return Path(self.here_path_str)
+        return Path(self.easypypi_path_str)
 
     def get_default_name(self):
         return "as_easy_as_pie"
@@ -167,14 +175,16 @@ class Package(CleverDict):
 
         Returns True to bypass metadata review, False to proceed as normal.
         """
-        fields = "name version github_id url description author email keywords requirements license classifiers twine_username".split()
-        fields_exist = [hasattr(self, x) for x in fields]
-        if all(fields_exist) and self.script_path.exists():
-            #  Check this path test is valid!
+        fields = "name version github_id url description author email keywords requirements setup_path_str easypypi_path_str license classifiers twine_username".split()
+        fields_missing = {x: self.get(x) for x in fields if not self.get(x)}
+        if not fields_missing and self.setup_path.exists():
             response = sg.popup_yes_no(f"Full metadata already exists for package '{self.name}'.\n\nSkip metadata review steps?", **sg_kwargs)
             if response is None:
                 quit()
             return True if response == "Yes" else False
+        else:
+            print("\nAll essential fields are populated EXCEPT for:")
+            print(", ".join(fields_missing.keys()))
 
     def get_metadata(self):
         """
@@ -200,7 +210,7 @@ class Package(CleverDict):
             if new is None:
                 quit()
             setattr(self, key, new)
-            self.script = update_line(self.script, old_line_starts, new)
+            self.script_lines = update_line(self.script_lines, old_line_starts, new)
 
     def get_classifiers(self):
         """
@@ -245,7 +255,7 @@ class Package(CleverDict):
                 print(f"\nDefault license selected: {self.license.name}")
                 break
         self.finalise_license()
-        self.script = update_line(self.script, "LICENSE = ", self.license.name)
+        self.script_lines = update_line(self.script_lines, "LICENSE = ", self.license.name)
         # TODO: Pre-select radio button based on last saved config file
 
     def finalise_license(self):
@@ -278,9 +288,12 @@ class Package(CleverDict):
         Creates skeleton folder structure for a package and starter files.
         Updates global variable SCRIPT_PATH.
         """
-        # Check if script_path is correct...
-        script_path  = Path(sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = self.script_path, **sg_kwargs))
-        new_folder = script_path / self.name / self.name
+        parent_path_str = ""
+        while not parent_path_str:
+            parent_path_str  = sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = self.setup_path, **sg_kwargs)
+            if parent_path_str is None:
+                quit()
+        new_folder = setup_path / self.name / self.name
         try:
             os.makedirs(new_folder)
             print(f"Created package folder {new_folder}")
@@ -293,8 +306,10 @@ class Package(CleverDict):
         \package_name\package_name
         """
         files = sg.popup_get_file("Please select any other files to copy to new project folder", **sg_kwargs, default_path="", multiple_files=True)
+        if files is None:
+            quit()
         for file in [Path(x) for x in files.split(";")]:
-            new_file = self.script_path / self.name / self.name / file.name
+            new_file = self.setup_path / self.name / self.name / file.name
             if new_file.is_file():
                 response = sg.popup_yes_no(f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?", **sg_kwargs)
                 if response == "No":
@@ -313,7 +328,7 @@ class Package(CleverDict):
         /package_name/package_name.py
         /package_name/test_PACKAGE_NAME.py
         """
-        self.package_path = self.script_path_str / self.name
+        self.package_path = self.setup_path_str / self.name
         create_file(self.package_path / self.name / "__init__.py", [f"from {self.name} import *"])
         create_file(self.package_path / self.name / (self.name + ".py"), [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
         create_file(self.package_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from {self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
@@ -321,7 +336,7 @@ class Package(CleverDict):
         # setup.py and LICENSE should always be overwritten as most likely to
         # include changes from running easyPiPY.
         # The other files are just bare-bones initially, created as placeholders.
-        create_file(self.package_path / "setup.py", self.script, overwrite = True)
+        create_file(self.package_path / "setup.py", self.script_lines, overwrite = True)
         create_file(self.package_path / "LICENSE", self.license.body, overwrite=True)
 
     def twine_setup(self):
@@ -354,7 +369,7 @@ class Package(CleverDict):
         except ImportError:
             print("> Installing setuptools and twine if not already present...")
             os.system('cmd /c "python -m pip install setuptools wheel twine"')
-        os.chdir(self.script_path / self.name)
+        os.chdir(self.setup_path / self.name)
         print("> Running setup.py...")
         os.system('cmd /c "setup.py sdist"')
 
@@ -435,7 +450,7 @@ def start_gui(**kwargs):
     # Redirect stdout and stderr to Debug Window:
     sg.set_options(message_box_line_width=80, debug_win_size=(100,30),)
     options = {"do_not_reroute_stdout": False, "keep_on_top": True}
-    print(f"easyPyPI template files are located in:\n{Path(__file__).parent}", **options if redirect else {})
+    print(f"easyPyPI template files are located in:\n{Path(__file__).parent}", **options if kwargs.get('redirect') else {})
 
 if __name__ == "__main__":
     # start_gui(redirect=True)
