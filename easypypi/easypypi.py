@@ -207,17 +207,14 @@ class Package(CleverDict):
         Selects classifiers in key categories to better describe the package.
         Choices are imported from classifiers.classifier_list.
 
-        Updates made in place to .classifiers comma-separated string
+        .classifiers updated in place as a string of comma-separated values
         """
-        self.load_value("classifiers")
-        if not hasattr(self, "classifiers"):
-            classifiers = ""
-        else:
-            classifiers =  [x.strip() for x in self.classifiers.split(",")]
+        classifiers =  []
         for group in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split("|"):
             choices = [x for x in classifier_list if x.startswith(group)]
             selection = prompt_with_checkboxes(group, choices)
-            classifiers.update(selection)
+            if selection:
+                classifiers.extend(selection)
         self.classifiers = ", ".join(classifiers)
         # TODO: Pre-select checkboxes based on last saved config file
 
@@ -419,16 +416,16 @@ def prompt_with_checkboxes(group,choices):
     buttons = [sg.Button("Next")]
     event, checked  =  sg.Window("easypypi", [prompt,[sg.Column(layout, scrollable=True, vertical_scroll_only=True, size= (600,300))], buttons], size= (600,400),resizable=True).read(close=True)
     if event == "Next":
-        return {choices[k] for k,v in checked.items() if v}
-    else:
-        return set()
+        return [choices[k] for k,v in checked.items() if v]
+    if event is None:
+        quit()
     # TODO: Pre-select checkboxes based on last saved config file
 
-def start_gui(redirect=False):
+def start_gui(**kwargs):
     """
     Toggles between normal output and routing stdout/stderr to PySimpleGUI
     """
-    if redirect:
+    if kwargs.get('redirect'):
         global print
         print = sg.Print
     # Common keyword arguments for PySimpleGUI popups:
@@ -442,7 +439,7 @@ def start_gui(redirect=False):
 
 if __name__ == "__main__":
     # start_gui(redirect=True)
-    start_gui()
+    start_gui(redirect=False)
     self = Package()
     if not self.bypass_metadata_review():
         self.get_metadata()
