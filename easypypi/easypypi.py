@@ -28,7 +28,7 @@ class Package(CleverDict):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.__class__.create_config_file()
+        self.create_config_file()
         if not self.load_value("script_path_str"):
             # Placeholder for final setup.py path:
             self.script_path_str = os.getcwd()
@@ -40,39 +40,33 @@ class Package(CleverDict):
         output = self.info(as_str=True)
         return output.replace("CleverDict", type(self).__name__, 1)
 
-    @classmethod
-    def load_config_file(cls):
+    def load_config_file(self):
         """
         Loads the contents of a pre-existing config file as attributes
-
-        Class method allows access to config file even if there are problems instantiating a Package object.
         """
-        with open(cls.config_path, "r") as file:
+        with open(Package.config_path, "r") as file:
                 values = json.load(file)
         for key, value in values.items():
             setattr(self, key, value)
 
-    @classmethod
-    def create_config_file(cls):
+    def create_config_file(self):
         """
         Uses click to find & create a platform-appropriate easyPyPI folder, then
         creates a skeleton json file there to store persistent data (if one
         doesn't already exist, or if the current one is empty).
-
-        Class method allows access to config file even if there are problems instantiating a Package object.
         """
-        if cls.config_path.is_file() and cls.config_path.stat().st_size:
+        if Package.config_path.is_file() and Package.config_path.stat().st_size:
             # config file exists and isn't empty
-            cls.__class__.load_config_file()
+            self.load_config_file()
             return
         try:
-            os.makedirs(cls.config_path.parent)
-            print(f"Folder created: {cls.config_path.parent}")
+            os.makedirs(Package.config_path.parent)
+            print(f"Folder created: {Package.config_path.parent}")
         except FileExistsError:
             pass
-        with open(cls.config_path, "w") as file:
+        with open(Package.config_path, "w") as file:
             json.dump({"author": ""}, file)  # Create skeleton .json file
-        print(f"Created a new config file: {cls.config_path}")
+        print(f"Created a new config file: {Package.config_path}")
 
     @classmethod
     def delete_config_file(cls):
@@ -80,7 +74,8 @@ class Package(CleverDict):
         Deletes the easyPyPI config file e.g. in case of corruption.
         Creating a new Package object will automatically recreate a fresh one.
 
-        Class method allows access to config file even if there are problems instantiating a Package object.
+        Set to Classmethod in order to access the config file even when there
+        are problems instantiating a particular Package object e.g. debugging.
         """
         os.remove(cls.config_path)
 
