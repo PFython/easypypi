@@ -28,7 +28,7 @@ class Package(CleverDict):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.create_config_file()
+        self.__class__.create_config_file()
         if not self.load_value("script_path_str"):
             # Placeholder for final setup.py path:
             self.script_path_str = os.getcwd()
@@ -40,38 +40,49 @@ class Package(CleverDict):
         output = self.info(as_str=True)
         return output.replace("CleverDict", type(self).__name__, 1)
 
-    def load_config_file(self):
-        """ Loads the contents of a pre-existing config file as attributes """
-        with open(Package.config_path, "r") as file:
+    @classmethod
+    def load_config_file(cls):
+        """
+        Loads the contents of a pre-existing config file as attributes
+
+        Class method allows access to config file even if there are problems instantiating a Package object.
+        """
+        with open(cls.config_path, "r") as file:
                 values = json.load(file)
         for key, value in values.items():
             setattr(self, key, value)
 
-    def create_config_file(self):
+    @classmethod
+    def create_config_file(cls):
         """
         Uses click to find & create a platform-appropriate easyPyPI folder, then
         creates a skeleton json file there to store persistent data (if one
         doesn't already exist, or if the current one is empty).
+
+        Class method allows access to config file even if there are problems instantiating a Package object.
         """
-        if self.config_path.is_file() and self.config_path.stat().st_size:
+        if cls.config_path.is_file() and cls.config_path.stat().st_size:
             # config file exists and isn't empty
-            self.load_config_file()
+            cls.__class__.load_config_file()
             return
         try:
-            os.makedirs(self.config_path.parent)
-            print(f"Folder created: {self.config_path.parent}")
+            os.makedirs(cls.config_path.parent)
+            print(f"Folder created: {cls.config_path.parent}")
         except FileExistsError:
             pass
-        with open(self.config_path, "w") as file:
+        with open(cls.config_path, "w") as file:
             json.dump({"author": ""}, file)  # Create skeleton .json file
-        print(f"Created a new config file: {self.config_path}")
+        print(f"Created a new config file: {cls.config_path}")
 
-    def delete_config_file(self):
+    @classmethod
+    def delete_config_file(cls):
         """
         Deletes the easyPyPI config file e.g. in case of corruption.
         Creating a new Package object will automatically recreate a fresh one.
+
+        Class method allows access to config file even if there are problems instantiating a Package object.
         """
-        os.remove(self.config_path)
+        os.remove(cls.config_path)
 
     def save(self, key: str, value: any):
         """
@@ -154,6 +165,22 @@ class Package(CleverDict):
     def get_default_requirements(self):
         return "cleverdict, "
 
+    def bypass_metadata_review(self):
+        """
+        Check if all metadata has been supplied previously, and if so gives the
+        option to bypass get_metadata() and move straight to upversioning.
+
+        Returns True to bypass metadata review, False to proceed as normal.
+        """
+        fields = "name version github_id url description author email keywords requirements license classifiers twine_username".split()
+        fields_exist = [hasattr(self, x) for x in fields]
+        if all(fields_exist) and self.script_path.exists():
+            #  Check this path test is valid!
+            response = sg.popup_yes_no(f"Full metadata already exists for package '{self.name}'.\n\nSkip metadata review steps?", **sg_kwargs)
+            if response is None:
+                quit()
+            return True if response == "Yes" else False
+
     def get_metadata(self):
         """
         Check config file for previous values.  If no value is set, prompts for
@@ -184,23 +211,19 @@ class Package(CleverDict):
         """
         Selects classifiers in key categories to better describe the package.
         Choices are imported from classifiers.classifier_list.
-        Updates made in place to .classifiers list
+
+        Updates made in place to .classifiers comma-separated string
         """
         self.load_value("classifiers")
         if not hasattr(self, "classifiers"):
-            self.classifiers = ""
-        if type(self.classifiers) == str:
-            self.classifiers =  [x.strip() for x in self.classifiers.split(",")]
-            self.classifiers = list(set(self.classifiers))
-        else:  # str -> list
-            self.classifiers = eval(self.classifiers)
+            classifiers = ""
+        else:
+            classifiers =  [x.strip() for x in self.classifiers.split(",")]
         for group in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split("|"):
             choices = [x for x in classifier_list if x.startswith(group)]
             selection = prompt_with_checkboxes(group, choices)
-            if selection == "Skip":
-                break
-            self.classifiers.extend(selection)
-        self.classifiers = ", ".join(self.classifiers)
+            classifiers.update(selection)
+        self.classifiers = ", ".join(classifiers)
         # TODO: Pre-select checkboxes based on last saved config file
 
     def get_license(self):
@@ -263,6 +286,7 @@ class Package(CleverDict):
         Creates skeleton folder structure for a package and starter files.
         Updates global variable SCRIPT_PATH.
         """
+        # Check if script_path is correct...
         script_path  = Path(sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = self.script_path, **sg_kwargs))
         new_folder = script_path / self.name / self.name
         try:
@@ -270,27 +294,6 @@ class Package(CleverDict):
             print(f"Created package folder {new_folder}")
         except FileExistsError:
             print(f"Folder already exists {new_folder}")
-
-    def create_essential_files(self):
-        """
-        Creates essential files for the new package:
-        /setup.py
-        /README.md
-        /LICENSE
-        /package_name/__init__.py
-        /package_name/package_name.py
-        /package_name/test_PACKAGE_NAME.py
-        """
-        self.package_path = self.script_path / self.name
-        create_file(self.package_path / self.name / "__init__.py", [f"from {self.name} import *"])
-        create_file(self.package_path / self.name / (self.name + ".py"), [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
-        create_file(self.package_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from {self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
-        create_file (self.package_path / "README.md", [f"# {self.name}\n", DESCRIPTION+"\n\n{self.description}", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {self.author} {self.email}\n\n", "### CREDITS\n\n"])
-        # setup.py and LICENSE should always be overwritten as most likely to
-        # include changes from running easyPiPY.
-        # The other files are just bare-bones initially, created as placeholders.
-        create_file(self.package_path / "setup.py", self.script, overwrite = True)
-        create_file(self.package_path / "LICENSE", self.license.body, overwrite=True)
 
     def copy_other_files():
         """
@@ -307,6 +310,27 @@ class Package(CleverDict):
             if file.is_file():
                 shutil.copy(file, new_file)
                 print(f"✓ Copied {file.name} to {new_file.parent}")
+
+    def create_essential_files(self):
+        """
+        Creates essential files for the new package:
+        /setup.py
+        /README.md
+        /LICENSE
+        /package_name/__init__.py
+        /package_name/package_name.py
+        /package_name/test_PACKAGE_NAME.py
+        """
+        self.package_path = self.script_path_str / self.name
+        create_file(self.package_path / self.name / "__init__.py", [f"from {self.name} import *"])
+        create_file(self.package_path / self.name / (self.name + ".py"), [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
+        create_file(self.package_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from {self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
+        create_file (self.package_path / "README.md", [f"# {self.name}\n", DESCRIPTION+"\n\n{self.description}", "### OVERVIEW\n\n", "### INSTALLATION\n\n", "### BASIC USE\n\n", "### UNDER THE BONNET\n\n", "### CONTRIBUTING\n\n", f"Contact {self.author} {self.email}\n\n", "### CREDITS\n\n"])
+        # setup.py and LICENSE should always be overwritten as most likely to
+        # include changes from running easyPiPY.
+        # The other files are just bare-bones initially, created as placeholders.
+        create_file(self.package_path / "setup.py", self.script, overwrite = True)
+        create_file(self.package_path / "LICENSE", self.license.body, overwrite=True)
 
     def twine_setup(self):
         """
@@ -393,16 +417,16 @@ def get_next_version_number(current_version):
 def prompt_with_checkboxes(group,choices):
     """
     Creates a scrollable checkbox popup using PySimpleGui
-    Returns a list of selected choices, or and empty list
+    Returns a set of selected choices, or and empty set
     """
     prompt = [sg.Text(text=f"Please select any relevant classifiers in the {group.title()} group:")]
     layout = [[sg.Checkbox(text=choice)] for choice in choices]
-    buttons = [sg.Button("Next"), sg.Button("Skip Remaining Groups")]
+    buttons = [sg.Button("Next")]
     event, checked  =  sg.Window("easypypi", [prompt,[sg.Column(layout, scrollable=True, vertical_scroll_only=True, size= (600,300))], buttons], size= (600,400),resizable=True).read(close=True)
     if event == "Next":
-        return [choices[k] for k,v in checked.items() if v]
+        return {choices[k] for k,v in checked.items() if v}
     else:
-        return "Skip"
+        return set()
     # TODO: Pre-select checkboxes based on last saved config file
 
 def start_gui(redirect=False):
@@ -422,22 +446,24 @@ def start_gui(redirect=False):
     print(f"easyPyPI template files are located in:\n{Path(__file__).parent}", **options if redirect else {})
 
 if __name__ == "__main__":
-    start_gui(redirect=True)
+    # start_gui(redirect=True)
+    start_gui()
     self = Package()
-    self.get_metadata()
-    self.get_classifiers()
-    self.get_license()
-    self.create_folder_structure()
+    if not self.bypass_metadata_review():
+        self.get_metadata()
+        self.get_classifiers()
+        self.get_license()
+        self.create_folder_structure()
+        self.copy_other_files()
+    else:
+        self.version = get_next_version_number(self.version)
     self.create_essential_files()
-    self.copy_other_files()
     self.twine_setup()
     self.create_distribution_package()
     self.upload_with_twine()
     self.upload_to_github()
 
 ### FUTURE ENHANCEMENTS
-
-# TODO: Clarify entry point for upversioning/updating package later on
 
 # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
 # Maybe refactor to use .pypirc config files?
