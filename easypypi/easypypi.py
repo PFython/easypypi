@@ -192,7 +192,7 @@ class Package(CleverDict):
                    "version": "Please enter latest version number:",
                    "github_id": "Please enter your Github or main repository ID:",
                    "url": "Please enter a link to the package repository:",
-                   "description": "Please enter a description:",
+                   "description": "Please enter a description with escape characters for \\ \" \' etc.:",
                    "author": "Please the full name of the author:",
                    "email": "Please enter an email address for the author:",
                    "keywords": "Please enter some keywords separated by a comma:",
@@ -493,9 +493,7 @@ def update_existing_package(package = None):
     package.upload_to_github()
     return package
 
-### MAIN
-
-if __name__ == "__main__":
+def main():
     """ Executed if this script is run rather than simply imported """
     start_gui(redirect=False)
     package = Package()
@@ -503,6 +501,10 @@ if __name__ == "__main__":
         package = start_new_package(package)
         package.upversioned_already = True
     package = update_existing_package(package)
+    return package
+
+if __name__ == "__main__":
+    package = main()
 
 # Shortcut aliases which can be imported quickly and easily:
 start = start_new_package
@@ -521,4 +523,6 @@ version = get_next_version_number
 # TODO: start_gui(redirect=True) captures some but not all output currently...
 
 # TODO: Some new line characters removed from LICENSE
+
+# TODO: Store config details for more than one package at a time
 

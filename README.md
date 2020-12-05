@@ -8,10 +8,13 @@
 
 ![](https://media.giphy.com/media/XIqCQx02E1U9W/giphy.gif)
 
-Well now there is.  Just install `easyPyPI`, run it, and follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
+Well now there is:
 
     pip install easypypi
-    python.exe -m easypypi
+    >>> import easypypi
+    >>> easypypi.main()
+
+Then just follow the prompts.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
 
 With `easyPyPI` you don't have to spend hours...
 
@@ -73,9 +76,6 @@ If you want to play around in your IDE here are some ideas to get you started:
 # If you have files in different locations which you want to include:
 >>> package.copy_other_files()
 ```
-
-
-
 
 If `easyPyPI` helps save you some time so you can focus on more important things in life, please feel free to to show your appreciation and:
 
