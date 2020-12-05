@@ -33,7 +33,48 @@ Enjoy!
 
 ![](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
 
-If `easyPyPI` helps save you some time so you can focus on more important things, please do show your appreciation and feel free to:
+### UNDER THE BONNET
+
+If you want a bit more control and understanding of what's going on, the main `easyPyPI` class is called `Package` and we've included two main entry points which will help you get your head around the process flow:
+
+- `start_new_package()`
+- `update_existing_package()`
+
+Have a look at those functions inside `easypypi.py` and it should be fairly easy to see what other functions are being used, and in what order.
+
+If you want to play around in your IDE here are some ideas to get you started:
+
+```
+>>> from easypypi import start, update, version
+
+# Create a new package object:
+>>> package  = start()
+
+# Check if any required information is missing:
+>>> package.review_metadata()
+
+# Upversion and republish a package previously created using easyPyPI:
+>>> package = update(package)
+
+# Suggest the next version number (more schemas coming soon):
+>>> version("1.1")
+'1.11'
+
+# Locate your easyPyPI config file:
+>>> Package.config_path  # It's a class variable so capital 'P'
+
+# Find where easyPyPI and its default templates were installed:
+>>> package.easypypi_path  # or just:
+>>> HERE
+
+# Locate your package's setup.py:
+>>> package.setup_path
+```
+
+
+
+
+If `easyPyPI` helps save you some time so you can focus on more important things in life, please feel free to to show your appreciation and:
 
 <a href="https://www.buymeacoffee.com/pfython" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" width="217px" ></a>
 

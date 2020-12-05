@@ -2,7 +2,7 @@ from pathlib import Path
 from setuptools import setup, find_packages
 
 HERE = Path(__file__).parent
-PACKAGE_NAME = ""
+NAME = ""
 GITHUB_ID = ""
 VERSION = 0
 DESCRIPTION = ""
@@ -22,7 +22,7 @@ def comma_split(text: str):
     return [x.strip() for x in text.split(",")]
 
 if __name__ == "__main__":
-    setup(name = PACKAGE_NAME,
+    setup(name = NAME,
         packages = find_packages(),
         version = VERSION,
         license=LICENSE,

@@ -13,12 +13,11 @@ from shared_functions import create_file, update_line
 from classifiers import classifier_list
 from licenses import licenses_dict
 from setup_template import (AUTHOR, CLASSIFIERS, DESCRIPTION, EMAIL, GITHUB_ID,
-                            KEYWORDS, LICENSE, PACKAGE_NAME, REQUIREMENTS, URL,
+                            KEYWORDS, LICENSE, NAME, REQUIREMENTS, URL,
                             VERSION, HERE)
 
 # Global keyword arguments for PySimpleGUI popups:
 sg_kwargs = {"title": "easyPyPI", "keep_on_top": True, "icon": HERE / "easypypi.ico"}
-
 
 class Package(CleverDict):
     """
@@ -32,12 +31,16 @@ class Package(CleverDict):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.create_config_file()
+        self.create_or_load_config_file()
         if not self.get("setup_path_str"):
             # Placeholder for final setup.py path:
             self.setup_path_str = os.getcwd()
         self.easypypi_path_str = str(Path(__file__).parent)
-        with open(self.easypypi_path / "setup_template.py", "r") as file:
+        if (self.setup_path/"setup.py").is_file():
+            setup = self.setup_path/"setup.py"
+        else:
+            setup = self.easypypi_path / "setup_template.py"
+        with open(setup, "r") as file:
             self.script_lines = file.readlines()
 
     def __str__(self):
@@ -55,7 +58,7 @@ class Package(CleverDict):
         if hasattr(self, "license"):
             self.license = CleverDict(self.license)
 
-    def create_config_file(self):
+    def create_or_load_config_file(self):
         """
         Uses click to find & create a platform-appropriate easyPyPI folder, then
         creates a skeleton json file there to store persistent data (if one
@@ -99,27 +102,15 @@ class Package(CleverDict):
         """
         with open(Package.config_path, "w") as file:
             # CleverDict.get_aliases finds attributes created after __init__:
-            fields_dict = {x: self.get(x) for x in self.get_aliases() if "password" not in x}
+            fields_dict = {x: self.get(x) for x in self.get_aliases() if "password" not in x.lower()}
             json.dump(fields_dict, file)
         if key:
-            print(f"✓ '{key}' updated in {Package.config_path}")
-
-    # def load_value(self, key):
-    #     """
-    #     Loads a value from the config file and updates the relevant attribute.
-    #     Also returns the value, or None.
-    #     """
-    #     try:
-    #         with open(Package.config_path, "r") as file:
-    #             value = json.load(file).get(key)
-    #             if value:
-    #                 setattr(self, key, value)
-    #                 return value
-    #             else:
-    #                 print(f"\n⚠   Failed to find '{key}' in:\n    {Package.config_path}")
-    #     except (json.decoder.JSONDecodeError, FileNotFoundError):
-    #         # e.g. if file is empty or doesn't exist
-    #         return
+            if "password" in key.lower():
+                location = "memory but NOT saved to file"
+            else:
+                location = Package.config_path
+            # Enable to confirm auto-save is working:
+            # print(f"ⓘ '{key}' updated in {location}")
 
     @property
     def setup_path(self):
@@ -173,7 +164,7 @@ class Package(CleverDict):
     def get_default_requirements(self):
         return "cleverdict, "
 
-    def bypass_metadata_review(self):
+    def review_metadata(self):
         """
         Check if all metadata has been supplied previously, and if so gives the
         option to bypass get_metadata() and move straight to upversioning.
@@ -183,13 +174,14 @@ class Package(CleverDict):
         fields = "name version github_id url description author email keywords requirements setup_path_str easypypi_path_str license classifiers twine_username".split()
         fields_missing = {x: self.get(x) for x in fields if not self.get(x)}
         if not fields_missing and self.setup_path.exists():
-            response = sg.popup_yes_no(f"Full metadata already exists for package '{self.name}'.\n\nSkip metadata review steps?", **sg_kwargs)
+            response = sg.popup_yes_no(f"Full metadata already exists for package:\n'{self.name}' version {self.version}\n\nClick [Yes] to review metadata or [No] to skip ahead...", **sg_kwargs)
             if response is None:
-                quit()
+                return "Cancel"
             return True if response == "Yes" else False
         else:
             print("\nAll essential fields are populated EXCEPT for:")
             print(", ".join(fields_missing.keys()))
+            return True
 
     def get_metadata(self):
         """
@@ -213,9 +205,8 @@ class Package(CleverDict):
             old_line_starts = key.upper() + " = "
             new = sg.popup_get_text(prompt, default_text = default, **sg_kwargs)
             if new is None:
-                quit()
+                break
             setattr(self, key, new)
-            self.script_lines = update_line(self.script_lines, old_line_starts, new)
 
     def get_classifiers(self):
         """
@@ -260,7 +251,6 @@ class Package(CleverDict):
                 print(f"\nDefault license selected: {self.license.name}")
                 break
         self.finalise_license()
-        self.script_lines = update_line(self.script_lines, "LICENSE = ", self.license.name)
         # TODO: Pre-select radio button based on last saved config file
 
     def finalise_license(self):
@@ -301,7 +291,7 @@ class Package(CleverDict):
                     webbrowser.open(url)
         self.twine_username = sg.popup_get_text(f"Please enter your Twine username:", default_text = self.get('twine_username'), **sg_kwargs)
         if not self.twine_username:
-            quit()
+            return
         self.get_twine_password()
         # TODO: TWINE only supports 1 value pair, not one for Test and one for PyPI
         # Maybe refactor to use .pypirc config files?
@@ -312,27 +302,24 @@ class Package(CleverDict):
         Prompt for twine password - not saved in config file or elsewhere
         """
         self.twine_password = sg.popup_get_text("Please enter your Twine/PyPI password (not saved to file):", password_char = "*", default_text = self.get('twine_password'), **sg_kwargs)
-        if not self.twine_password:
-            quit()
         # TODO: Save password securely e.g. with keyring
-
 
     def create_folder_structure(self):
         """
         Creates skeleton folder structure for a package and starter files.
-        Updates global variable SCRIPT_PATH.
+        Creates .setup_path_str.
         """
         parent_path_str = ""
         while not parent_path_str:
-            parent_path_str  = sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = self.setup_path, **sg_kwargs)
+            parent_path_str  = sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = self.setup_path.parent, **sg_kwargs)
             if parent_path_str is None:
                 quit()
         self.setup_path_str = str(Path(parent_path_str)/self.name)
         try:
             os.makedirs(self.setup_path/self.name)
-            print(f"Created package folder {self.setup_path}")
+            print(f"\n✓ Created package folder:\n  {self.setup_path}")
         except FileExistsError:
-            print(f"Folder already exists {self.setup_path}")
+            print(f"\nⓘ Package folder already exists:\n  {self.setup_path}")
 
     def copy_other_files(self):
         """
@@ -341,7 +328,7 @@ class Package(CleverDict):
         """
         files = sg.popup_get_file("Please select any other files to copy to new project folder", **sg_kwargs, default_path="", multiple_files=True)
         if files is None:
-            quit()
+            return
         for file in [Path(x) for x in files.split(";")]:
             new_file = self.setup_path / self.name / file.name
             if new_file.is_file():
@@ -350,7 +337,17 @@ class Package(CleverDict):
                     continue
             if file.is_file():
                 shutil.copy(file, new_file)
-                print(f"✓ Copied {file.name} to {new_file.parent}")
+                print(f"\n✓ Copied {file.name} to:\n {new_file.parent}")
+
+    def update_script_lines(self):
+        keywords = "NAME GITHUB_ID VERSION DESCRIPTION LICENSE AUTHOR EMAIL URL KEYWORDS CLASSIFIERS REQUIREMENTS".split()
+        for keyword in keywords:
+            old_line_starts = keyword + " = "
+            if keyword == "LICENSE":
+                new_value = self.license.name
+            else:
+                new_value = getattr(self, keyword.lower())
+            self.script_lines = update_line(self.script_lines, old_line_starts, new_value)
 
     def create_essential_files(self):
         """
@@ -364,6 +361,7 @@ class Package(CleverDict):
         """
         # setup.py and LICENSE can be be overwritten as they're most likely to
         # include changes from running easyPiPY and no actual code will be lost:
+        self.update_script_lines()
         create_file(self.setup_path / "setup.py", self.script_lines, overwrite = True)
         create_file(self.setup_path / "LICENSE", self.license.body, overwrite=True)
 
@@ -379,10 +377,10 @@ class Package(CleverDict):
             import setuptools
             import twine
         except ImportError:
-            print("> Installing setuptools and twine if not already present...")
+            print("\n> Installing setuptools and twine if not already present...")
             os.system('cmd /c "python -m pip install setuptools wheel twine"')
         os.chdir(self.setup_path)
-        print("> Running setup.py...")
+        print(f"\n> Running {self.setup_path/'setup.py'}...")
         os.system('cmd /c "setup.py sdist"')
 
     def upload_with_twine(self):
@@ -399,19 +397,19 @@ class Package(CleverDict):
         params += f' dist/*-{self.version}.tar.gz '
         if os.system(f'cmd /c "python -m twine upload --repository {params} -u {self.twine_username} -p {self.twine_password}"'):
             # A return value of 1 (True) indicates an error
-            print("Problem uploading with Twine; probably either:")
-            print(" - An authentication issue.  Check your username and password?")
-            print(" - Using an existing version number.  Try a new version number?")
+            print("\n⚠ Problem uploading with Twine; probably either:")
+            print("   - An authentication issue.  Check your username and password?")
+            print("   - Using an existing version number.  Try a new version number?")
         else:
             url = "https://"
             url += "" if choice == "PyPI" else "test."
             webbrowser.open(url + f"pypi.org/project/{self.name}")
-            response = sg.popup_yes_no("Fantastic! Your package should now be available in your webbrowser.\n\nDo you want to install it now using pip?\n", **sg_kwargs)
+            response = sg.popup_yes_no("Fantastic! Your package should now be available in your webbrowser, although you might need to wait a few minutes before it registers as the 'latest' version.\n\nDo you want to install it now using pip?\n", **sg_kwargs)
             if response == "Yes":
-                if not os.system(f'cmd /c "pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'):
+                print()
+                if not os.system(f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'):
                     # A return value of 1 indicates an error, 0 indicates success
-                    print(f"{self.name} successfully installed using pip!\n")
-                    print(f"You can view its details using 'pip show {self.name}'")
+                    print(f"\nⓘ You can view its details using 'pip show {self.name}':\n")
                     os.system(f'cmd /c "pip show {self.name}"')
         # TODO: Automate registration: https://mechanicalsoup.readthedocs.io/
 
@@ -447,7 +445,7 @@ def prompt_with_checkboxes(group,choices):
     if event == "Next":
         return [choices[k] for k,v in checked.items() if v]
     if event is None:
-        quit()
+        return
     # TODO: Pre-select checkboxes based on last saved config file
 
 def start_gui(**kwargs):
@@ -461,26 +459,55 @@ def start_gui(**kwargs):
     # Redirect stdout and stderr to Debug Window:
     sg.set_options(message_box_line_width=80, debug_win_size=(100,30),)
     options = {"do_not_reroute_stdout": False, "keep_on_top": True}
-    print(f"easyPyPI template files are located in:\n{Path(__file__).parent}", **options if kwargs.get('redirect') else {})
+    print(f"\nⓘ easyPyPI template files are located in:\n  {Path(HERE)}", **options if kwargs.get('redirect') else {})
+    print(f"\nⓘ Your easyPyPI config file is:\n  {Package.config_path}")
+
+def start_new_package(package = None):
+    """
+    Entry point for creating a package for the first time, or reviewing
+    basic metadata for a previously created package.
+    """
+    start_gui(redirect=False)
+    if package is None:
+        package = Package()
+    package.get_metadata()
+    package.get_classifiers()
+    package.get_license()
+    package.get_twine_credentials()
+    package.create_folder_structure()
+    package.copy_other_files()
+    return package
+
+def update_existing_package(package = None):
+    """ Entry point for upversioning and/or republishing an existing package """
+    start_gui(redirect=False)
+    if package is None:
+        package = Package()
+    if not package.get('upversioned_already'):
+        package.version = get_next_version_number(package.version)
+    package.upversioned_already = False  # reset for next time
+    print(f"\nⓘ New version number: {package.version}")
+    package.create_essential_files()
+    package.run_setup_py()
+    package.upload_with_twine()
+    package.upload_to_github()
+    return package
+
+### MAIN
 
 if __name__ == "__main__":
-    # start_gui(redirect=True)
+    """ Executed if this script is run rather than simply imported """
     start_gui(redirect=False)
-    self = Package()
-    if not self.bypass_metadata_review():
-        self.get_metadata()
-        self.get_classifiers()
-        self.get_license()
-        self.get_twine_credentials()
-        self.create_folder_structure()
-        self.copy_other_files()
-    else:
-        self.version = get_next_version_number(self.version)
-    self.create_essential_files()
-    # !BUG: script_lines not updating, so setup.py not populated
-    self.run_setup_py()
-    self.upload_with_twine()
-    self.upload_to_github()
+    package = Package()
+    if package.review_metadata():
+        package = start_new_package(package)
+        package.upversioned_already = True
+    package = update_existing_package(package)
+
+# Shortcut aliases which can be imported quickly and easily:
+start = start_new_package
+update = update_existing_package
+version = get_next_version_number
 
 ### FUTURE ENHANCEMENTS
 
@@ -491,5 +518,6 @@ if __name__ == "__main__":
 # TODO: Offer other schemas in get_next_version_number e.g. date format:
 # 2020.21.11
 
+# TODO: start_gui(redirect=True) captures some but not all output currently...
 
 
