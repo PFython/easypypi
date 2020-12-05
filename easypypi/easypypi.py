@@ -9,10 +9,10 @@ import click  # used to get cross-platform folder path for config file
 import PySimpleGUI as sg
 
 from cleverdict import CleverDict
-from shared_functions import create_file, update_line
-from classifiers import classifier_list
-from licenses import licenses_dict
-from setup_template import (AUTHOR, CLASSIFIERS, DESCRIPTION, EMAIL, GITHUB_ID,
+from .shared_functions import create_file, update_line
+from .classifiers import classifier_list
+from .licenses import licenses_dict
+from .setup_template import (AUTHOR, CLASSIFIERS, DESCRIPTION, EMAIL, GITHUB_ID,
                             KEYWORDS, LICENSE, NAME, REQUIREMENTS, URL,
                             VERSION, HERE)
 
@@ -366,9 +366,9 @@ class Package(CleverDict):
         create_file(self.setup_path / "LICENSE", self.license.body, overwrite=True)
 
         # The other files are just bare-bones initially, created as placeholders which can't then be overwritten by easyPyPI:
-        create_file(self.setup_path / self.name / "__init__.py", [f"from {self.name} import *"])
+        create_file(self.setup_path / self.name / "__init__.py", [f"from .{self.name} import *"])
         create_file(self.setup_path / self.name / (self.name + ".py"), [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
-        create_file(self.setup_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from {self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
+        create_file(self.setup_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from .{self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
         create_file (self.setup_path / "README.md", [f'# `{self.name}`\n', '![Replace with your own inspirational logo here](https://github.com/PFython/easypypi/blob/main/easypypi.png?raw=true)\n', f'{self.description}\n', '### OVERVIEW\n', '\n', '### INSTALLATION\n', '\n', '```\n', f'pip install {self.name}\n', '```\n', '\n', '### BASIC USE\n', '\n', '```\n', f'import {self.name}\n', '```\n', '\n', '### UNDER THE BONNET\n', '\n', '### CONTRIBUTING\n', '\n', f'Contact {self.author}\n\n{self.email}\n', '\n', '### CREDITS'])
 
     def run_setup_py(self):
@@ -520,4 +520,5 @@ version = get_next_version_number
 
 # TODO: start_gui(redirect=True) captures some but not all output currently...
 
+# TODO: Some new line characters removed from LICENSE
 

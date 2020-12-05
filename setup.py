@@ -2,17 +2,17 @@ from pathlib import Path
 from setuptools import setup, find_packages
 
 HERE = Path(__file__).parent
-PACKAGE_NAME = "easypypi"
-GITHUB_ID = ""
-VERSION = 0
-DESCRIPTION = ""
-LICENSE = ""
-AUTHOR = ""
-EMAIL = ""
-URL = ""
-KEYWORDS = ""
-CLASSIFIERS = ""
-REQUIREMENTS = ""
+NAME = "easypypi"
+GITHUB_ID = "Pfython"
+VERSION = "0.1"
+DESCRIPTION = """easyPyPI (Pronounced "Easy Pie-Pea-Eye") is a quick, simple, one-size-fits-all solution for sharing your Python creations on the Python Package Index (PyPI) so others can just `pip install your_script` with no fuss."""
+LICENSE = "MIT License"
+AUTHOR = "Peter Fison"
+EMAIL = "peter@southwestlondon.tv"
+URL = "https://github.com/Pfython/easypypi"
+KEYWORDS = "easypypi, Peter Fison, Pfython, pip, package, publish, share, build, deploy, Python"
+CLASSIFIERS = "Development Status :: 4 - Beta, Intended Audience :: Developers, Operating System :: OS Independent, Programming Language :: Python :: 3.6, Programming Language :: Python :: 3.7, Programming Language :: Python :: 3.8, Programming Language :: Python :: 3.9, Topic :: Software Development :: Build Tools, Topic :: Software Development :: Version Control :: Git, Topic :: System :: Archiving :: Packaging, Topic :: Utilities"
+REQUIREMENTS = "cleverdict, "
 
 def comma_split(text: str):
     """
@@ -22,7 +22,7 @@ def comma_split(text: str):
     return [x.strip() for x in text.split(",")]
 
 if __name__ == "__main__":
-    setup(name = PACKAGE_NAME,
+    setup(name = NAME,
         packages = find_packages(),
         version = VERSION,
         license=LICENSE,

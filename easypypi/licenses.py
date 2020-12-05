@@ -1,4 +1,4 @@
-from shared_functions import create_file, update_line
+from .shared_functions import create_file, update_line
 from pathlib import Path
 import requests
 
