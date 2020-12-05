@@ -69,6 +69,9 @@ If you want to play around in your IDE here are some ideas to get you started:
 
 # Locate your package's setup.py:
 >>> package.setup_path
+
+# If you have files in different locations which you want to include:
+>>> package.copy_other_files()
 ```
 
 
