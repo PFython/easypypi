@@ -11,7 +11,8 @@ import PySimpleGUI as sg
 from cleverdict import CleverDict
 from .shared_functions import create_file, update_line
 from .classifiers import classifier_list
-from .licenses import licenses_dictfrom .setup_template import (
+from .licenses import licenses_dict
+from .setup_template import (
     AUTHOR,
     CLASSIFIERS,
     DESCRIPTION,
@@ -284,6 +285,8 @@ class Package(CleverDict):
         ):
             choices = [x for x in classifier_list if x.startswith(group)]
             selection = self.__class__.prompt_with_checkboxes(group, choices)
+            if selection is None:
+                break
             if selection:
                 classifiers.extend(selection)
         self.classifiers = ", ".join(classifiers)
@@ -660,10 +663,7 @@ class Package(CleverDict):
         print(f"\nⓘ Your easyPyPI config file is:\n  {Package.config_path}")
 
 
-# Shortcut aliases which can be imported quickly and easily:
-start = Package.start
-update = Package.update_files
-upload = Package.upload
+# Shortcut alias for importing:
 upversion = Package.get_next_version_number
 
 ### FUTURE ENHANCEMENTS

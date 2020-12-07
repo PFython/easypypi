@@ -66,9 +66,6 @@ If you want a bit more control and understanding of what's going on 'under the b
 
 If you want to play around in your IDE here are some ideas to get you started...
 
-Import some shortcuts:
-
-    >>> from easypypi import start, update, upload, version
 
 Check if any required information is missing:
 
@@ -76,13 +73,14 @@ Check if any required information is missing:
 
 Suggest the next version number (more schemas coming soon):
 
+    >>> from easypypi import upversion
     >>> upversion("1.1")
     '1.11'
 
 Prevent upversioning when creating new files:
 
     >>> package.upversioned_already = True
-    >>> package.update()
+    >>> package.update_files()
 
     # Resets to False after going through the .start process
 
