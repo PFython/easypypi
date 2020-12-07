@@ -11,13 +11,24 @@ import PySimpleGUI as sg
 from cleverdict import CleverDict
 from .shared_functions import create_file, update_line
 from .classifiers import classifier_list
-from .licenses import licenses_dict
-from .setup_template import (AUTHOR, CLASSIFIERS, DESCRIPTION, EMAIL, GITHUB_ID,
-                            KEYWORDS, LICENSE, NAME, REQUIREMENTS, URL,
-                            VERSION, HERE)
+from .licenses import licenses_dictfrom .setup_template import (
+    AUTHOR,
+    CLASSIFIERS,
+    DESCRIPTION,
+    EMAIL,
+    GITHUB_ID,
+    KEYWORDS,
+    LICENSE,
+    NAME,
+    REQUIREMENTS,
+    URL,
+    VERSION,
+    HERE,
+)
 
 # Global keyword arguments for PySimpleGUI popups:
 sg_kwargs = {"title": "easyPyPI", "keep_on_top": True, "icon": HERE / "easypypi.ico"}
+
 
 class Package(CleverDict):
     """
@@ -26,33 +37,74 @@ class Package(CleverDict):
 
     Makes use of CleverDict's auto-save feature to store values in a config
     file, and .get_aliases() to keep a track of newly created attributes.
+
+    redirect : Send stdout and stderr to PySimpleGUI Debug Window
     """
+
     config_path = Path(click.get_app_dir("easyPyPI")) / ("config.json")
 
     def __init__(self, **kwargs):
+        print(kwargs)
         super().__init__(**kwargs)
+        self.__class__.start_gui(redirect=kwargs.get("redirect"))
         self.create_or_load_config_file()
         if not self.get("setup_path_str"):
             # Placeholder for final setup.py path:
             self.setup_path_str = os.getcwd()
         self.easypypi_path_str = str(Path(__file__).parent)
-        if (self.setup_path/"setup.py").is_file():
-            setup = self.setup_path/"setup.py"
+        if (self.setup_path / "setup.py").is_file():
+            setup = self.setup_path / "setup.py"
         else:
             setup = self.easypypi_path / "setup_template.py"
         with open(setup, "r") as file:
             self.script_lines = file.readlines()
+        if self.review_metadata():
+            self.start()
+        self.update_files()
+        self.upload()
 
     def __str__(self):
         output = self.info(as_str=True)
         return output.replace("CleverDict", type(self).__name__, 1)
+
+    def start(self):
+        """
+        Entry point for creating a package for the first time, or reviewing
+        basic metadata for a previously created package.
+        """
+        self.get_metadata()
+        self.get_classifiers()
+        self.get_license()
+        self.get_twine_credentials()
+        self.create_folder_structure()
+        self.copy_other_files()
+        self.upversioned_already = True
+
+    def update_files(self):
+        """
+        Entry point for upversioning an existing package, recreating
+        setup.py and creating a new tar.gz package ready for uploading.
+        """
+        if not self.get("upversioned_already"):
+            self.version = self.__class__.get_next_version_number(self.version)
+        self.upversioned_already = False  # reset for next time
+        print(f"\nⓘ New version number: {self.version}")
+        self.create_essential_files()
+        self.run_setup_py()
+
+    def upload(self):
+        """
+        Entry point for republishing an existing package to Test PyPI or PyPI.
+        """
+        self.upload_with_twine()
+        self.upload_to_github()
 
     def load_config_file(self):
         """
         Loads the contents of a pre-existing config file as attributes
         """
         with open(Package.config_path, "r") as file:
-                values = json.load(file)
+            values = json.load(file)
         for key, value in values.items():
             setattr(self, key, value)
         if hasattr(self, "license"):
@@ -88,7 +140,7 @@ class Package(CleverDict):
         """
         os.remove(cls.config_path)
 
-    def save(self, key = None, value = None):
+    def save(self, key=None, value=None):
         """
         This method is called by CleverDict whenever a value or attribute
         changes.  Used here to update the config file automatically.
@@ -102,7 +154,11 @@ class Package(CleverDict):
         """
         with open(Package.config_path, "w") as file:
             # CleverDict.get_aliases finds attributes created after __init__:
-            fields_dict = {x: self.get(x) for x in self.get_aliases() if "password" not in x.lower()}
+            fields_dict = {
+                x: self.get(x)
+                for x in self.get_aliases()
+                if "password" not in x.lower()
+            }
             json.dump(fields_dict, file)
         if key:
             if "password" in key.lower():
@@ -138,7 +194,7 @@ class Package(CleverDict):
         return "as_easy_as_pie"
 
     def get_default_version(self):
-        return get_next_version_number(VERSION)
+        return self.__class__.get_next_version_number(VERSION)
 
     def get_default_github_id(self):
         return
@@ -174,7 +230,10 @@ class Package(CleverDict):
         fields = "name version github_id url description author email keywords requirements setup_path_str easypypi_path_str license classifiers twine_username".split()
         fields_missing = {x: self.get(x) for x in fields if not self.get(x)}
         if not fields_missing and self.setup_path.exists():
-            response = sg.popup_yes_no(f"Full metadata already exists for package:\n'{self.name}' version {self.version}\n\nClick [Yes] to review metadata or [No] to skip ahead...", **sg_kwargs)
+            response = sg.popup_yes_no(
+                f"Full metadata already exists for package:\n'{self.name}' version {self.version}\n\nClick [Yes] to review metadata or [No] to skip ahead...",
+                **sg_kwargs,
+            )
             if response is None:
                 return "Cancel"
             return True if response == "Yes" else False
@@ -188,22 +247,24 @@ class Package(CleverDict):
         Check config file for previous values.  If no value is set, prompts for
         a value and updates the relevant Package attribute.
         """
-        prompts = {"name": "Please enter a name for this package (all lowercase, underscores if needed):",
-                   "version": "Please enter latest version number:",
-                   "github_id": "Please enter your Github or main repository ID:",
-                   "url": "Please enter a link to the package repository:",
-                   "description": "Please enter a description with escape characters for \\ \" \' etc.:",
-                   "author": "Please the full name of the author:",
-                   "email": "Please enter an email address for the author:",
-                   "keywords": "Please enter some keywords separated by a comma:",
-                   "requirements": "Please enter any packages/modules that absolutely need to be installed for yours to work, separated by commas:"}
+        prompts = {
+            "name": "Please enter a name for this package (all lowercase, underscores if needed):",
+            "version": "Please enter latest version number:",
+            "github_id": "Please enter your Github or main repository ID:",
+            "url": "Please enter a link to the package repository:",
+            "description": "Please enter a description with escape characters for \\ \" ' etc.:",
+            "author": "Please the full name of the author:",
+            "email": "Please enter an email address for the author:",
+            "keywords": "Please enter some keywords separated by a comma:",
+            "requirements": "Please enter any packages/modules that absolutely need to be installed for yours to work, separated by commas:",
+        }
         for key, prompt in prompts.items():
             default = self.get(key)
             if not default:
                 func = getattr(self, "get_default_" + key.lower())
                 default = func()
             old_line_starts = key.upper() + " = "
-            new = sg.popup_get_text(prompt, default_text = default, **sg_kwargs)
+            new = sg.popup_get_text(prompt, default_text=default, **sg_kwargs)
             if new is None:
                 break
             setattr(self, key, new)
@@ -215,10 +276,14 @@ class Package(CleverDict):
 
         .classifiers updated in place as a string of comma-separated values
         """
-        classifiers =  []
-        for group in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split("|"):
+        classifiers = []
+        for (
+            group
+        ) in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split(
+            "|"
+        ):
             choices = [x for x in classifier_list if x.startswith(group)]
-            selection = prompt_with_checkboxes(group, choices)
+            selection = self.__class__.prompt_with_checkboxes(group, choices)
             if selection:
                 classifiers.extend(selection)
         self.classifiers = ", ".join(classifiers)
@@ -233,14 +298,29 @@ class Package(CleverDict):
         licenses = [CleverDict(x) for x in licenses_dict]
         layout = [[sg.Text(text=f"Please select a License for your package:")]]
         for license in licenses:
-            layout.extend([[sg.Radio(license.key.upper(), "licenses", font="bold 12" ,tooltip = license.description, size = (10,1)), sg.Text(text=license.html_url, enable_events=True, size = (40,1))]])
+            layout.extend(
+                [
+                    [
+                        sg.Radio(
+                            license.key.upper(),
+                            "licenses",
+                            font="bold 12",
+                            tooltip=license.description,
+                            size=(10, 1),
+                        ),
+                        sg.Text(
+                            text=license.html_url, enable_events=True, size=(40, 1)
+                        ),
+                    ]
+                ]
+            )
         layout += [[sg.Button("OK")]]
-        window = sg.Window("easypypi", layout, size = (600,400),resizable=True)
+        window = sg.Window("easypypi", layout, size=(600, 400), resizable=True)
         while True:
-            event, values  =  window.read(close=True)
+            event, values = window.read(close=True)
             if event == "OK" and any(values.values()):
                 window.close()
-                self.license = [licenses[k] for k,v in values.items() if v][0]
+                self.license = [licenses[k] for k, v in values.items() if v][0]
                 break
             if event:
                 if "http" in event:
@@ -257,22 +337,22 @@ class Package(CleverDict):
         """ Make simple updates based on license.implementation instructions """
         year = str(datetime.datetime.now().year)
         replacements = dict()
-        if self.license.key == 'lgpl-3.0':
+        if self.license.key == "lgpl-3.0":
             self.license.body += '\nThis license is an additional set of permissions to the <a href="/licenses/gpl-3.0">GNU GPLv3</a> license which is reproduced below:\n\n'
-            gpl = [CleverDict(x) for x in licenses_dict if x['key'] == 'gpl-3.0'][0]
+            gpl = [CleverDict(x) for x in licenses_dict if x["key"] == "gpl-3.0"][0]
             self.license.body += gpl.body
         if self.license.key == "mit":
-            replacements = {"[year]": year,
-                            "[fullname]": self.author}
-        if self.license.key in ['gpl-3.0', 'lgpl-3.0', 'agpl-3.0']:
-            replacements = {"<year>": year,
-                            "<name of author>": self.author,
-                            "<program>": self.name,
-                            "Also add information on how to contact you by electronic and paper mail.": f"    Contact email: {self.email}",
-                            "<one line to give the program's name and a brief idea of what it does.>": f"{self.name}: {self.description}"}
+            replacements = {"[year]": year, "[fullname]": self.author}
+        if self.license.key in ["gpl-3.0", "lgpl-3.0", "agpl-3.0"]:
+            replacements = {
+                "<year>": year,
+                "<name of author>": self.author,
+                "<program>": self.name,
+                "Also add information on how to contact you by electronic and paper mail.": f"    Contact email: {self.email}",
+                "<one line to give the program's name and a brief idea of what it does.>": f"{self.name}: {self.description}",
+            }
         if self.license.key == "apache-2.0":
-            replacements = {"[yyyy]": year,
-                            "[name of copyright owner]": self.author}
+            replacements = {"[yyyy]": year, "[name of copyright owner]": self.author}
         if replacements:
             for old, new in replacements.items():
                 self.license.body = self.license.body.replace(old, new)
@@ -282,14 +362,24 @@ class Package(CleverDict):
         Prompts for PyPI account setup and sets environment variables for Twine use.
         """
         if not self.get("twine_username"):
-            urls = {"Test PyPI": r"https://test.pypi.org/account/register/",
-                    "PyPI": r"https://pypi.org/account/register/"}
+            urls = {
+                "Test PyPI": r"https://test.pypi.org/account/register/",
+                "PyPI": r"https://pypi.org/account/register/",
+            }
             for repo, url in urls.items():
-                response = sg.popup_yes_no(f"Do you need to register for an account on {repo}?",  **sg_kwargs)
+                response = sg.popup_yes_no(
+                    f"Do you need to register for an account on {repo}?", **sg_kwargs
+                )
                 if response == "Yes":
-                    print("Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process.")
+                    print(
+                        "Please register using the SAME USERNAME for PyPI as Test PyPI, then return to easyPyPI to continue the process."
+                    )
                     webbrowser.open(url)
-        self.twine_username = sg.popup_get_text(f"Please enter your Twine username:", default_text = self.get('twine_username'), **sg_kwargs)
+        self.twine_username = sg.popup_get_text(
+            f"Please enter your Twine username:",
+            default_text=self.get("twine_username"),
+            **sg_kwargs,
+        )
         if not self.twine_username:
             return
         self.get_twine_password()
@@ -301,7 +391,12 @@ class Package(CleverDict):
         """
         Prompt for twine password - not saved in config file or elsewhere
         """
-        self.twine_password = sg.popup_get_text("Please enter your Twine/PyPI password (not saved to file):", password_char = "*", default_text = self.get('twine_password'), **sg_kwargs)
+        self.twine_password = sg.popup_get_text(
+            "Please enter your Twine/PyPI password (not saved to file):",
+            password_char="*",
+            default_text=self.get("twine_password"),
+            **sg_kwargs,
+        )
         # TODO: Save password securely e.g. with keyring
 
     def create_folder_structure(self):
@@ -311,12 +406,16 @@ class Package(CleverDict):
         """
         parent_path_str = ""
         while not parent_path_str:
-            parent_path_str  = sg.popup_get_folder("Please select the parent folder for your package i.e. without the package name", default_path = self.setup_path.parent, **sg_kwargs)
+            parent_path_str = sg.popup_get_folder(
+                "Please select the parent folder for your package i.e. without the package name",
+                default_path=self.setup_path.parent,
+                **sg_kwargs,
+            )
             if parent_path_str is None:
                 quit()
-        self.setup_path_str = str(Path(parent_path_str)/self.name)
+        self.setup_path_str = str(Path(parent_path_str) / self.name)
         try:
-            os.makedirs(self.setup_path/self.name)
+            os.makedirs(self.setup_path / self.name)
             print(f"\n✓ Created package folder:\n  {self.setup_path}")
         except FileExistsError:
             print(f"\nⓘ Package folder already exists:\n  {self.setup_path}")
@@ -326,13 +425,21 @@ class Package(CleverDict):
         Prompts for additional files to copy over into the newly created folder:
         \package_name\package_name
         """
-        files = sg.popup_get_file("Please select any other files to copy to new project folder", **sg_kwargs, default_path="", multiple_files=True)
+        files = sg.popup_get_file(
+            "Please select any other files to copy to new project folder",
+            **sg_kwargs,
+            default_path="",
+            multiple_files=True,
+        )
         if files is None:
             return
         for file in [Path(x) for x in files.split(";")]:
             new_file = self.setup_path / self.name / file.name
             if new_file.is_file():
-                response = sg.popup_yes_no(f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?", **sg_kwargs)
+                response = sg.popup_yes_no(
+                    f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?",
+                    **sg_kwargs,
+                )
                 if response == "No":
                     continue
             if file.is_file():
@@ -347,7 +454,9 @@ class Package(CleverDict):
                 new_value = self.license.name
             else:
                 new_value = getattr(self, keyword.lower())
-            self.script_lines = update_line(self.script_lines, old_line_starts, new_value)
+            self.script_lines = update_line(
+                self.script_lines, old_line_starts, new_value
+            )
 
     def create_essential_files(self):
         """
@@ -362,14 +471,60 @@ class Package(CleverDict):
         # setup.py and LICENSE can be be overwritten as they're most likely to
         # include changes from running easyPiPY and no actual code will be lost:
         self.update_script_lines()
-        create_file(self.setup_path / "setup.py", self.script_lines, overwrite = True)
+        create_file(self.setup_path / "setup.py", self.script_lines, overwrite=True)
         create_file(self.setup_path / "LICENSE", self.license.body, overwrite=True)
 
         # The other files are just bare-bones initially, created as placeholders which can't then be overwritten by easyPyPI:
-        create_file(self.setup_path / self.name / "__init__.py", [f"from .{self.name} import *"])
-        create_file(self.setup_path / self.name / (self.name + ".py"), [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"])
-        create_file(self.setup_path / self.name / ("test_" +self.name + ".py"), [f"# Tests for {self.name}\n", "\n", f"from .{self.name} import *\n", "import pytest\n", "", "class Test_Group_1:\n", "    def test_something(self):\n", '        """ Something should happen when you run something() """\n', "        assert something() == something_else\n"])
-        create_file (self.setup_path / "README.md", [f'# `{self.name}`\n', '![Replace with your own inspirational logo here](https://github.com/PFython/easypypi/blob/main/easypypi.png?raw=true)\n', f'{self.description}\n', '### OVERVIEW\n', '\n', '### INSTALLATION\n', '\n', '```\n', f'pip install {self.name}\n', '```\n', '\n', '### BASIC USE\n', '\n', '```\n', f'import {self.name}\n', '```\n', '\n', '### UNDER THE BONNET\n', '\n', '### CONTRIBUTING\n', '\n', f'Contact {self.author}\n\n{self.email}\n', '\n', '### CREDITS'])
+        create_file(
+            self.setup_path / self.name / "__init__.py", [f"from .{self.name} import *"]
+        )
+        create_file(
+            self.setup_path / self.name / (self.name + ".py"),
+            [f"# {self.name} by {self.author}\n", f"# {datetime.datetime.now()}\n"],
+        )
+        create_file(
+            self.setup_path / self.name / ("test_" + self.name + ".py"),
+            [
+                f"# Tests for {self.name}\n",
+                "\n",
+                f"from .{self.name} import *\n",
+                "import pytest\n",
+                "",
+                "class Test_Group_1:\n",
+                "    def test_something(self):\n",
+                '        """ Something should happen when you run something() """\n',
+                "        assert something() == something_else\n",
+            ],
+        )
+        create_file(
+            self.setup_path / "README.md",
+            [
+                f"# `{self.name}`\n",
+                "![Replace with your own inspirational logo here](https://github.com/PFython/easypypi/blob/main/easypypi.png?raw=true)\n",
+                f"{self.description}\n",
+                "### OVERVIEW\n",
+                "\n",
+                "### INSTALLATION\n",
+                "\n",
+                "```\n",
+                f"pip install {self.name}\n",
+                "```\n",
+                "\n",
+                "### BASIC USE\n",
+                "\n",
+                "```\n",
+                f"import {self.name}\n",
+                "```\n",
+                "\n",
+                "### UNDER THE BONNET\n",
+                "\n",
+                "### CONTRIBUTING\n",
+                "\n",
+                f"Contact {self.author}\n\n{self.email}\n",
+                "\n",
+                "### CREDITS",
+            ],
+        )
 
     def run_setup_py(self):
         """ Creates a .tar.gz distribution file with setup.py """
@@ -385,17 +540,23 @@ class Package(CleverDict):
 
     def upload_with_twine(self):
         """ Uploads to PyPI or Test PyPI with twine """
-        choice = sg.popup(f"Do you want to upload {self.name} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n", **sg_kwargs, custom_text=("Test PyPI", "PyPI"))
+        choice = sg.popup(
+            f"Do you want to upload {self.name} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n",
+            **sg_kwargs,
+            custom_text=("Test PyPI", "PyPI"),
+        )
         if choice == "PyPI":
             params = "pypi"
         if choice == "Test PyPI":
             params = "testpypi"
         if not choice:
             return
-        if not self.get('twine_password'):
+        if not self.get("twine_password"):
             self.get_twine_password()
-        params += f' dist/*-{self.version}.tar.gz '
-        if os.system(f'cmd /c "python -m twine upload --repository {params} -u {self.twine_username} -p {self.twine_password}"'):
+        params += f" dist/*-{self.version}.tar.gz "
+        if os.system(
+            f'cmd /c "python -m twine upload --repository {params} -u {self.twine_username} -p {self.twine_password}"'
+        ):
             # A return value of 1 (True) indicates an error
             print("\n⚠ Problem uploading with Twine; probably either:")
             print("   - An authentication issue.  Check your username and password?")
@@ -404,12 +565,19 @@ class Package(CleverDict):
             url = "https://"
             url += "" if choice == "PyPI" else "test."
             webbrowser.open(url + f"pypi.org/project/{self.name}")
-            response = sg.popup_yes_no("Fantastic! Your package should now be available in your webbrowser, although you might need to wait a few minutes before it registers as the 'latest' version.\n\nDo you want to install it now using pip?\n", **sg_kwargs)
+            response = sg.popup_yes_no(
+                "Fantastic! Your package should now be available in your webbrowser, although you might need to wait a few minutes before it registers as the 'latest' version.\n\nDo you want to install it now using pip?\n",
+                **sg_kwargs,
+            )
             if response == "Yes":
                 print()
-                if not os.system(f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'):
+                if not os.system(
+                    f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'
+                ):
                     # A return value of 1 indicates an error, 0 indicates success
-                    print(f"\nⓘ You can view its details using 'pip show {self.name}':\n")
+                    print(
+                        f"\nⓘ You can view its details using 'pip show {self.name}':\n"
+                    )
                     os.system(f'cmd /c "pip show {self.name}"')
         # TODO: Automate registration: https://mechanicalsoup.readthedocs.io/
 
@@ -418,98 +586,85 @@ class Package(CleverDict):
         return
         # TODO: Automate registration: https://mechanicalsoup.readthedocs.io/
 
-### STATIC METHODS
+    ### STATIC METHODS
 
-def get_next_version_number(current_version):
-    """ Suggests next package version number based on simple schemas """
-    decimal_version = decimal(str(current_version))
-    try:
-        _, digits, exponent =decimal_version.as_tuple()
-        if exponent == 0:  # i.e. 0 decimal places:
-            increment = "0.1"
-        else:
-            increment = "0.01"
-        return str(decimal_version + decimal(increment))
-    except dec.InvalidOperation:
-        return new_version+"-new"
+    @staticmethod
+    def get_next_version_number(current_version):
+        """ Suggests next package version number based on simple schemas """
+        decimal_version = decimal(str(current_version))
+        try:
+            _, digits, exponent = decimal_version.as_tuple()
+            if exponent == 0:  # i.e. 0 decimal places:
+                increment = "0.1"
+            else:
+                increment = "0.01"
+            return str(decimal_version + decimal(increment))
+        except dec.InvalidOperation:
+            return new_version + "-new"
 
-def prompt_with_checkboxes(group,choices):
-    """
-    Creates a scrollable checkbox popup using PySimpleGui
-    Returns a set of selected choices, or and empty set
-    """
-    prompt = [sg.Text(text=f"Please select any relevant classifiers in the {group.title()} group:")]
-    layout = [[sg.Checkbox(text=choice)] for choice in choices]
-    buttons = [sg.Button("Next")]
-    event, checked  =  sg.Window("easypypi", [prompt,[sg.Column(layout, scrollable=True, vertical_scroll_only=True, size= (600,300))], buttons], size= (600,400),resizable=True).read(close=True)
-    if event == "Next":
-        return [choices[k] for k,v in checked.items() if v]
-    if event is None:
-        return
-    # TODO: Pre-select checkboxes based on last saved config file
+    @staticmethod
+    def prompt_with_checkboxes(group, choices):
+        """
+        Creates a scrollable checkbox popup using PySimpleGui
+        Returns a set of selected choices, or and empty set
+        """
+        prompt = [
+            sg.Text(
+                text=f"Please select any relevant classifiers in the {group.title()} group:"
+            )
+        ]
+        layout = [[sg.Checkbox(text=choice)] for choice in choices]
+        buttons = [sg.Button("Next")]
+        event, checked = sg.Window(
+            "easypypi",
+            [
+                prompt,
+                [
+                    sg.Column(
+                        layout,
+                        scrollable=True,
+                        vertical_scroll_only=True,
+                        size=(600, 300),
+                    )
+                ],
+                buttons,
+            ],
+            size=(600, 400),
+            resizable=True,
+        ).read(close=True)
+        if event == "Next":
+            return [choices[k] for k, v in checked.items() if v]
+        if event is None:
+            return
+        # TODO: Pre-select checkboxes based on last saved config file
 
-def start_gui(**kwargs):
-    """
-    Toggles between normal output and routing stdout/stderr to PySimpleGUI
-    """
-    if kwargs.get('redirect'):
-        global print
-        print = sg.Print
-    sg.change_look_and_feel('DarkAmber')
-    # Redirect stdout and stderr to Debug Window:
-    sg.set_options(message_box_line_width=80, debug_win_size=(100,30),)
-    options = {"do_not_reroute_stdout": False, "keep_on_top": True}
-    print(f"\nⓘ easyPyPI template files are located in:\n  {Path(HERE)}", **options if kwargs.get('redirect') else {})
-    print(f"\nⓘ Your easyPyPI config file is:\n  {Package.config_path}")
+    @staticmethod
+    def start_gui(**kwargs):
+        """
+        Toggles between normal output and routing stdout/stderr to PySimpleGUI
+        """
+        if kwargs.get("redirect"):
+            global print
+            print = sg.Print
+        sg.change_look_and_feel("DarkAmber")
+        # Redirect stdout and stderr to Debug Window:
+        sg.set_options(
+            message_box_line_width=80,
+            debug_win_size=(100, 30),
+        )
+        options = {"do_not_reroute_stdout": False, "keep_on_top": True}
+        print(
+            f"\nⓘ easyPyPI template files are located in:\n  {Path(HERE)}",
+            **options if kwargs.get("redirect") else {},
+        )
+        print(f"\nⓘ Your easyPyPI config file is:\n  {Package.config_path}")
 
-def start_new_package(package = None):
-    """
-    Entry point for creating a package for the first time, or reviewing
-    basic metadata for a previously created package.
-    """
-    start_gui(redirect=False)
-    if package is None:
-        package = Package()
-    package.get_metadata()
-    package.get_classifiers()
-    package.get_license()
-    package.get_twine_credentials()
-    package.create_folder_structure()
-    package.copy_other_files()
-    return package
-
-def update_existing_package(package = None):
-    """ Entry point for upversioning and/or republishing an existing package """
-    start_gui(redirect=False)
-    if package is None:
-        package = Package()
-    if not package.get('upversioned_already'):
-        package.version = get_next_version_number(package.version)
-    package.upversioned_already = False  # reset for next time
-    print(f"\nⓘ New version number: {package.version}")
-    package.create_essential_files()
-    package.run_setup_py()
-    package.upload_with_twine()
-    package.upload_to_github()
-    return package
-
-def main():
-    """ Executed if this script is run rather than simply imported """
-    start_gui(redirect=False)
-    package = Package()
-    if package.review_metadata():
-        package = start_new_package(package)
-        package.upversioned_already = True
-    package = update_existing_package(package)
-    return package
-
-if __name__ == "__main__":
-    package = main()
 
 # Shortcut aliases which can be imported quickly and easily:
-start = start_new_package
-update = update_existing_package
-version = get_next_version_number
+start = Package.start
+update = Package.update_files
+upload = Package.upload
+upversion = Package.get_next_version_number
 
 ### FUTURE ENHANCEMENTS
 
@@ -522,7 +677,6 @@ version = get_next_version_number
 
 # TODO: start_gui(redirect=True) captures some but not all output currently...
 
-# TODO: Some new line characters removed from LICENSE
+# TODO: Some new line characters incorrectly removed from LICENSE
 
 # TODO: Store config details for more than one package at a time
-
