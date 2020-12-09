@@ -599,18 +599,16 @@ class Package(CleverDict):
 
     def upload_to_github(self):
         """ Uploads package to Github using Git"""
-        choice = sg.popup(
-            f"Do you want to upload {self.name} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n",
-            **sg_kwargs,
-            custom_text=("Test PyPI", "PyPI"),
-        )
+        choice = sg.popup_yes_no(
+            f"Do you want to upload (Push) your package to Github?\n",
+            **sg_kwargs,)
         if not choice:
             return
         commands = f"""git init
         git add *.*
-        git commit -m "first commit"
+        git commit -m "Committing version {self.version}"
         git branch -M main
-        git remote add origin https://github.com/{self.github_username}PFython/as_easy_as_pie.git
+        git remote add origin https://github.com/{self.github_username}/{self.name}.git
         git push -u origin main
         """.splitlines()
 
