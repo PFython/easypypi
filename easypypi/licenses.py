@@ -20,10 +20,8 @@ def fetch_license_data():
         "Apache": "https://api.github.com/licenses/apache-2.0",
         "Unlicense": "https://api.github.com/licenses/unlicense",
     }
-
-    licenses = []
-    for pkg_license, api_link in api_links.items():
-        licenses += [requests.get(api_link).json()]
+    licenses = [requests.get(api_link).json()
+                for api_link in api_links.values()]
     return licenses
 
 
