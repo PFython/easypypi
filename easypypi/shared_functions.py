@@ -15,7 +15,7 @@ def create_file(filepath, content, **kwargs):
         content = content.splitlines(True)  # keep line breaks
     if filepath.is_file():
         if kwargs.get("overwrite"):
-            backup = filepath.with_name(filepath.stem + " - old.py")
+            backup = filepath.with_name(f"{filepath.stem} - old.py")
             if backup.is_file():
                 os.remove(backup)
             filepath.rename(backup)
