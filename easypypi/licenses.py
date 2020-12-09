@@ -22,7 +22,7 @@ def fetch_license_data():
     }
 
     licenses = []
-    for license, api_link in api_links.items():
+    for pkg_license, api_link in api_links.items():
         licenses += [requests.get(api_link).json()]
     return licenses
 
