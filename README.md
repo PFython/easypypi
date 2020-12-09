@@ -94,6 +94,8 @@ Finally, when you're  ready to upload your latest `Package` to **Test PyPI** or 
 
     >>> package.upload()
 
+This entry point also includes a handy option to auto-create a new (private) Github repository and automatically Push your new package files and folders.
+
 # 4. OTHER FEATURES
 
 Automatically generate the next version number for your `Package` (more schemas coming soon):
@@ -108,6 +110,11 @@ When you use the `.review()` method `easyPyPI` will helpfully update the current
     >>> package.generate()
 
     # Resets to False after going through the .review process
+
+If you want to create an `Package` object but skip the review of metadata and return early to the command line, you can just supply "False" as the 2nd argument:
+
+    >>> package = Package("as_easy_as_pie, False)
+    # You'll still be prompted for a directory in order to search for setup.py
 
 To find where easyPyPI and its default templates were installed:
 
