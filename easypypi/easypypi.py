@@ -574,7 +574,7 @@ class Package(CleverDict):
         choice = sg.popup_yes_no(
             f"Do you want to create a repository on Github?\n",
             **sg_kwargs,)
-        if choice !=:
+        if choice != "Yes":
             return
         if not (self.get("github_password") and self.get("github_username")):
             self.register_on_pypi_and_github()
