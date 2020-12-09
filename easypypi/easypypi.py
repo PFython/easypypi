@@ -574,7 +574,7 @@ class Package(CleverDict):
         choice = sg.popup_yes_no(
             f"Do you want to create a repository on Github?\n",
             **sg_kwargs,)
-        if not choice:
+        if choice !=:
             return
         if not (self.get("github_password") and self.get("github_username")):
             self.register_on_pypi_and_github()
@@ -609,7 +609,7 @@ class Package(CleverDict):
         choice = sg.popup_yes_no(
             f'Do you want to upload (Push) your package to Github?\n\n⚠ CAUTION - Only recommended when creating your repository for the first time!  This automation is will run the following commands:\n\n{commands}',
             **sg_kwargs,)
-        if not choice:
+        if choice != "Yes":
             return
 
         os.chdir(self.setup_filepath.parent)
