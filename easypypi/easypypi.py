@@ -12,6 +12,9 @@ import click  # used to get cross-platform folder path for config file
 import mechanicalsoup
 from cleverdict import CleverDict
 
+from utils import GROUP_CLASSIFIERS
+from utils import REPLACEMENTS
+from .utils import SETUP_FIELDS
 from .classifiers import classifier_list
 from .licenses import licenses_dict
 from .shared_functions import create_file
@@ -38,7 +41,7 @@ class Package(CleverDict):
 
     easypypi_dirpath = Path(__file__).parent
     config_filepath = Path(click.get_app_dir("easyPyPI")) / ("config.json")
-    setup_fields = "name version github_username url description author email keywords requirements license classifiers".split()
+    setup_fields = SETUP_FIELDS
 
     def __init__(self, name=None, review=True, **kwargs):
         super().__init__(**kwargs)
@@ -294,11 +297,7 @@ class Package(CleverDict):
         .classifiers updated in place as a string of comma-separated values
         """
         classifiers = []
-        for (
-                group
-        ) in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split(
-            "|"
-        ):
+        for group in GROUP_CLASSIFIERS:
             choices = [x for x in classifier_list if x.startswith(group)]
             selection = self.__class__.prompt_with_checkboxes(group, choices)
             if selection is None:
@@ -517,7 +516,7 @@ class Package(CleverDict):
             template_filepath = self.easypypi_dirpath / template_filepath
             with open(template_filepath, "r") as file:
                 text = file.read()
-            for replacement in "{self.name} {self.description} {self.author} {self.email} {datetime.datetime.now()}".split():
+            for replacement in REPLACEMENTS:
                 text = text.replace(replacement, eval(f"f'{replacement}'"))
             create_file(destination_path, text)
 
