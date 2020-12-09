@@ -2,7 +2,7 @@ from pathlib import Path
 from setuptools import setup, find_packages
 
 NAME = ""
-GITHUB_ID = ""
+GITHUB_USERNAME = ""
 VERSION = ""
 DESCRIPTION = ""
 LICENSE = ""
@@ -19,6 +19,8 @@ def comma_split(text: str):
     Returns a list of strings after splitting original string by commas
     Applied to KEYWORDS, CLASSIFIERS, and REQUIREMENTS
     """
+    if type(text) == list:
+        return [x.strip() for x in text]
     return [x.strip() for x in text.split(",")]
 
 

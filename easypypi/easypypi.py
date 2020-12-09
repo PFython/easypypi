@@ -12,6 +12,7 @@ from cleverdict import CleverDict
 from .shared_functions import create_file, update_line
 from .classifiers import classifier_list
 from .licenses import licenses_dict
+import mechanicalsoup
 
 # Global keyword arguments for PySimpleGUI popups:
 sg_kwargs = {
@@ -33,15 +34,16 @@ class Package(CleverDict):
 
     easypypi_dirpath = Path(__file__).parent
     config_filepath = Path(click.get_app_dir("easyPyPI")) / ("config.json")
-    setup_fields = "name version github_id url description author email keywords requirements license classifiers".split()
+    setup_fields = "name version github_username url description author email keywords requirements license classifiers".split()
 
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name=None, review = True, **kwargs):
         super().__init__(**kwargs)
         self.start_gui(redirect=kwargs.get("redirect"))
         self.load_defaults(name)
-        self.review()
-        self.generate()
-        self.upload()
+        if review:
+            self.review()
+            self.generate()
+            self.upload()
 
     def start_gui(self, **kwargs):
         """
@@ -126,7 +128,7 @@ class Package(CleverDict):
         parent_path_str = ""
         while not parent_path_str:
             parent_path_str = sg.popup_get_folder(
-                "Please select the parent folder for your package i.e. without the package name",
+                "Please select the parent folder for your package i.e. WITHOUT the package name",
                 default_path=self.setup_filepath.parent.parent,
                 **sg_kwargs,
             )
@@ -160,10 +162,10 @@ class Package(CleverDict):
         Entry point for creating a package for the first time, or reviewing
         basic metadata for a previously created package.
         """
+        self.register_on_pypi_and_github()  # First for self.github_username
         self.get_metadata()
         self.get_classifiers()
         self.get_license()
-        self.register_on_pypi()
         self.copy_other_files()
         self.upversioned_already = True
 
@@ -189,6 +191,7 @@ class Package(CleverDict):
         Entry point for republishing an existing package to Test PyPI or PyPI.
         """
         self.upload_with_twine()
+        self.create_github_repository()
         self.upload_to_github()
 
     def save(self, key=None, value=None):
@@ -231,7 +234,7 @@ class Package(CleverDict):
         return Path(self.setup_filepath_str)
 
     def get_default_url(self):
-        default = f"https://github.com/{self.github_id}"
+        default = f"https://github.com/{self.github_username}"
         return default + f"/{self.name}"
 
     def get_default_author(self):
@@ -243,7 +246,7 @@ class Package(CleverDict):
     def get_default_keywords(self):
         default = f"{self.name}, "
         default += f"{self.author}, "
-        return default + f"{self.github_id}, "
+        return default + f"{self.github_username}, "
 
     def get_default_requirements(self):
         return "cleverdict, "
@@ -255,7 +258,6 @@ class Package(CleverDict):
         """
         prompts = {
             "version": "Please enter latest version number:",
-            "github_id": "Please enter your Github or main repository ID:",
             "url": "Please enter a link to the package repository:",
             "description": "Please enter a description with escape characters for \\ \" ' etc.:",
             "author": "Please enter the full name of the author:",
@@ -369,58 +371,73 @@ class Package(CleverDict):
             for old, new in replacements.items():
                 self.license = self.license.replace(old, new)
 
-    def get_twine_username(self, account):
-        """ Dual purpose function to prompt for PyPI/Test PyPI username"""
+    def get_username(self, account):
+        """ Multi-purpose function to prompt for Github/PyPI/Test PyPI username"""
         if not self.get(account + "username"):
             setattr(
                 self,
                 account + "username",
                 sg.popup_get_text(
-                    f'Please enter your {account.title().replace("_", " ")}username:',
+                    f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")}username:',
                     default_text=self.get(account + "username"),
                     **sg_kwargs,
                 ),
             )
 
-    def get_twine_password(self, account):
-        """ Dual purpose function to prompt for PyPI/Test PyPI password"""
+    def get_password(self, account):
+        """
+        Multi-purpose function to prompt for Github/PyPI/Test PyPI password
+
+        account : pypi_, pypi_test_, or githhub_
+        """
         if not self.get(account + "password"):
             setattr(
                 self,
                 account + "password",
                 sg.popup_get_text(
-                    f'Please enter your {account.title().replace("_", " ")}password (not saved to file):',
+                    f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")}password (not saved to file):',
                     password_char="*",
                     default_text=self.get(account + "password"),
                     **sg_kwargs,
                 ),
             )
 
-    def register_on_pypi(self):
+    def register_on_pypi_and_github(self):
         """
         Prompts for TestPyPI/PyPI account names for twine to use.
 
         This approach avoids the need for a .pypirc config file:
         https://packaging.python.org/specifications/pypirc/#common-configurations
+
+        Creates the following attributes in place:
+
+        .pypi_username
+        .pypi_test_username
+        .github_username
+        .pypi_password
+        .pypi_test_password
+        .github_password
+
         """
-        for account in ["twine_", "twine_test_"]:
+        url = r"https://pypi.org/account/register/"
+        for account, (repo, url) in {
+            "pypi_": ["PyPI", url],
+            "pypi_test_": ["Test PyPI", url.replace("pypi", "test.pypi")],
+            "github_": ["Github", "https://github.com/join"],
+            }.items():
             if not self.get(account + "username"):
-                url = r"https://pypi.org/account/register/"
-                if "test" not in account:
-                    repo, url = ["PyPI", url]
-                else:
-                    repo, url = ["Test PyPI", url.replace("pypi", "test.pypi")]
                 response = sg.popup_yes_no(
-                    f"Do you need to register for an account on {repo}?", **sg_kwargs
-                )
+                    f"Do you need to register for an account on {repo}?", **sg_kwargs)
                 if response is None:
                     return
                 if response == "Yes":
                     print(
-                        f'\n⚠ Please create a {account.title().replace("_", " ")}account, then return to easyPyPI to continue the process...'
-                    )
+                        f'\n⚠ Please create a {account.title().replace("_", " ")}account, then return to easyPyPI to continue the process...')
                     webbrowser.open(url)
-                self.get_twine_username(account)
+                self.get_username(account)
+            if not self.get(account + "password"):
+                self.get_password(account)
+        self.url = self.get_default_url()  # Uses self.github_username
 
     def copy_other_files(self):
         """
@@ -518,13 +535,14 @@ class Package(CleverDict):
             return
         if choice == "PyPI":
             params = "pypi"
-            account = "twine_"
+            account = "pypi_"
         if choice == "Test PyPI":
             params = "testpypi"
-            account = "twine_test_"
+            account = "pypi_test_"
         params += f" dist/*-{self.version}.tar.gz "
-        self.get_twine_username(account)
-        self.get_twine_password(account)
+        if not (self.get("github_password") and self.get("github_username")):
+            self.register_on_pypi_and_github()
+        os.chdir(self.setup_filepath.parent)
         if os.system(
             f'cmd /c "python -m twine upload --repository {params} -u {getattr(self, account + "username")} -p {getattr(self, account + "password")}"'
         ):
@@ -551,9 +569,55 @@ class Package(CleverDict):
                     )
                     os.system(f'cmd /c "pip show {self.name}"')
 
+    def create_github_repository(self):
+        """ Creates an empty repository on Github """
+        choice = sg.popup_yes_no(
+            f"Do you want to create a repository on Github?\n",
+            **sg_kwargs,)
+        if not choice:
+            return
+        if not (self.get("github_password") and self.get("github_username")):
+            self.register_on_pypi_and_github()
+        browser = mechanicalsoup.StatefulBrowser(
+            soup_config={'features': 'lxml'},
+            raise_on_404=True,
+            user_agent='MyBot/0.1: mysite.example.com/bot_info',
+        )
+        browser.open("https://github.com/login")
+        browser.select_form('#login form')
+        browser["login"] = self.github_username
+        browser["password"] = self.github_password
+        resp = browser.submit_selected()
+        browser.open("https://github.com/new")
+        browser.select_form('form[action="/repositories"]')
+        browser["repository[name]"] = self.name
+        browser["repository[description]"] = self.description
+        browser["repository[visibility]"] = "private"
+        resp = browser.submit_selected()
+        # browser.launch_browser()  # Local copy for debugging
+        webbrowser.open(self.url)
+
     def upload_to_github(self):
-        """ Uploads package as a repository on Github """
-        return
+        """ Uploads package to Github using Git"""
+        choice = sg.popup_yes_no(
+            f"Do you want to upload (Push) your package to Github?\n",
+            **sg_kwargs,)
+        if not choice:
+            return
+        commands = f"""git init
+        git add *.*
+        git commit -m "Committing version {self.version}"
+        git branch -M main
+        git remote add origin https://github.com/{self.github_username}/{self.name}.git
+        git push -u origin main
+        """.splitlines()
+
+        os.chdir(self.setup_filepath.parent)
+        for command in commands:
+            if not os.system(f"cmd /c {command}"):
+                # A return value of 1 indicates an error, 0 indicates success
+                print(f"\nⓘ Your package is now online at:\n  {self.url}':\n")
+
 
     def __str__(self):
         output = self.info(as_str=True)
