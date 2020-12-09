@@ -315,19 +315,19 @@ class Package(CleverDict):
         """
         licenses = [CleverDict(x) for x in licenses_dict]
         layout = [[sg.Text(text="Please select a License for your package:")]]
-        for license in licenses:
+        for pkg_license in licenses:
             layout.extend(
                 [
                     [
                         sg.Radio(
-                            license.key.upper(),
+                            pkg_license.key.upper(),
                             "licenses",
                             font="bold 12",
-                            tooltip=license.description,
+                            tooltip=pkg_license.description,
                             size=(10, 1),
                         ),
                         sg.Text(
-                            text=license.html_url, enable_events=True, size=(40, 1)
+                            text=pkg_license.html_url, enable_events=True, size=(40, 1)
                         ),
                     ]
                 ]
