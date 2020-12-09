@@ -1,18 +1,21 @@
 import datetime
-import json
 import getpass
+import json
 import os
 import shutil
 import webbrowser
 from decimal import Decimal as decimal
 from pathlib import Path
-import click  # used to get cross-platform folder path for config file
+
 import PySimpleGUI as sg
+import click  # used to get cross-platform folder path for config file
+import mechanicalsoup
 from cleverdict import CleverDict
-from .shared_functions import create_file, update_line
+
 from .classifiers import classifier_list
 from .licenses import licenses_dict
-import mechanicalsoup
+from .shared_functions import create_file
+from .shared_functions import update_line
 
 # Global keyword arguments for PySimpleGUI popups:
 sg_kwargs = {
@@ -20,6 +23,7 @@ sg_kwargs = {
     "keep_on_top": True,
     "icon": Path(__file__).parent.parent / "easypypi.ico",
 }
+
 
 class Package(CleverDict):
     """
@@ -36,7 +40,7 @@ class Package(CleverDict):
     config_filepath = Path(click.get_app_dir("easyPyPI")) / ("config.json")
     setup_fields = "name version github_username url description author email keywords requirements license classifiers".split()
 
-    def __init__(self, name=None, review = True, **kwargs):
+    def __init__(self, name=None, review=True, **kwargs):
         super().__init__(**kwargs)
         self.start_gui(redirect=kwargs.get("redirect"))
         self.load_defaults(name)
@@ -92,8 +96,8 @@ class Package(CleverDict):
         doesn't already exist or if the current one is empty).
         """
         if (
-            self.__class__.config_filepath.is_file()
-            and self.__class__.config_filepath.stat().st_size
+                self.__class__.config_filepath.is_file()
+                and self.__class__.config_filepath.stat().st_size
         ):
             return
         try:
@@ -289,7 +293,7 @@ class Package(CleverDict):
         """
         classifiers = []
         for (
-            group
+                group
         ) in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split(
             "|"
         ):
@@ -424,7 +428,7 @@ class Package(CleverDict):
             "pypi_": ["PyPI", url],
             "pypi_test_": ["Test PyPI", url.replace("pypi", "test.pypi")],
             "github_": ["Github", "https://github.com/join"],
-            }.items():
+        }.items():
             if not self.get(account + "username"):
                 response = sg.popup_yes_no(
                     f"Do you need to register for an account on {repo}?", **sg_kwargs)
@@ -499,9 +503,9 @@ class Package(CleverDict):
 
         # Other files are just bare-bones initially, imported from templates:
         templates = {"readme_template.md": sfp / "README.md",
-        "init_template.py": sfp / self.name / "__init__.py",
-        "script_template.py": sfp / self.name / (self.name + ".py"),
-        "test_template.py": sfp / self.name / ("test_" + self.name + ".py"),}
+                     "init_template.py": sfp / self.name / "__init__.py",
+                     "script_template.py": sfp / self.name / (self.name + ".py"),
+                     "test_template.py": sfp / self.name / ("test_" + self.name + ".py"), }
 
         # Read in, make replacements, create in new folder structure
         for template_filepath, destination_path in templates.items():
@@ -521,7 +525,7 @@ class Package(CleverDict):
             print("\n> Installing setuptools and twine if not already present...")
             os.system('cmd /c "python -m pip install setuptools wheel twine"')
         os.chdir(self.setup_filepath.parent)
-        print(f"\n> Running {self.setup_filepath/'setup.py'}...")
+        print(f"\n> Running {self.setup_filepath / 'setup.py'}...")
         os.system('cmd /c "setup.py sdist"')
 
     def upload_with_twine(self):
@@ -544,7 +548,7 @@ class Package(CleverDict):
             self.register_on_pypi_and_github()
         os.chdir(self.setup_filepath.parent)
         if os.system(
-            f'cmd /c "python -m twine upload --repository {params} -u {getattr(self, account + "username")} -p {getattr(self, account + "password")}"'
+                f'cmd /c "python -m twine upload --repository {params} -u {getattr(self, account + "username")} -p {getattr(self, account + "password")}"'
         ):
             # A return value of 1 (True) indicates an error
             print("\n⚠ Problem uploading with Twine; probably either:")
@@ -561,7 +565,7 @@ class Package(CleverDict):
             if response == "Yes":
                 print()
                 if not os.system(
-                    f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'
+                        f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'
                 ):
                     # A return value of 1 indicates an error, 0 indicates success
                     print(
@@ -573,7 +577,7 @@ class Package(CleverDict):
         """ Creates an empty repository on Github """
         choice = sg.popup_yes_no(
             f"Do you want to create a repository on Github?\n",
-            **sg_kwargs,)
+            **sg_kwargs, )
         if choice != "Yes":
             return
         if not (self.get("github_password") and self.get("github_username")):
@@ -608,7 +612,7 @@ class Package(CleverDict):
         """
         choice = sg.popup_yes_no(
             f'Do you want to upload (Push) your package to Github?\n\n⚠ CAUTION - Only recommended when creating your repository for the first time!  This automation is will run the following commands:\n\n{commands}',
-            **sg_kwargs,)
+            **sg_kwargs, )
         if choice != "Yes":
             return
 
@@ -617,7 +621,6 @@ class Package(CleverDict):
             if not os.system(f"cmd /c {command}"):
                 # A return value of 1 indicates an error, 0 indicates success
                 print(f"\nⓘ Your package is now online at:\n  {self.url}':\n")
-
 
     def __str__(self):
         output = self.info(as_str=True)
@@ -671,4 +674,3 @@ class Package(CleverDict):
             return [choices[k] for k, v in checked.items() if v]
         if event is None:
             return
-

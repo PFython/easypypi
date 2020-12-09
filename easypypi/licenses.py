@@ -1,6 +1,9 @@
-from .shared_functions import create_file, update_line
 from pathlib import Path
+
 import requests
+
+from .shared_functions import create_file
+from .shared_functions import update_line
 
 
 def fetch_license_data():
