@@ -24,7 +24,7 @@ Well now there is!  With `easyPyPI` you don't have to spend hours...
 - Setting environment variables or creating a `.pypirc` file for `twine`  to use
 - Getting your **Test PyPI** and **PyPI** credentials mixed up
 
-Enjoy!
+
 
 # 1. QUICKSTART
 
