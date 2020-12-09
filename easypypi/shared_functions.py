@@ -24,7 +24,7 @@ def create_file(filepath, content, **kwargs):
         else:
             print(f"\nⓘ Existing file preserved:\n  {filepath}")
             return "file exists"
-    with open(filepath, "a") as file:
+    with filepath.open("a") as file:
         file.writelines(content)
         print(f"\n✓ Created new file:\n  {filepath}")
 
