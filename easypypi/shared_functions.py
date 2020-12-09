@@ -11,7 +11,7 @@ def create_file(filepath, content, **kwargs):
     Create a backup if required, then create new file using writelines
     Returns "file exists" if filepath already exists and overwrite = False
     """
-    if type(content) == str:
+    if isinstance(content, str):
         content = content.splitlines(True)  # keep line breaks
     if filepath.is_file():
         if kwargs.get("overwrite"):
