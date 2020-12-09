@@ -62,7 +62,6 @@ class Package(CleverDict):
             **options if kwargs.get("redirect") else {},
         )
         print(f"\nⓘ Your easyPyPI config file is:\n  {self.__class__.config_filepath}")
-        # TODO: start_gui(redirect=True) captures some but not all output currently...
 
     def load_defaults(self, name=None):
         """
@@ -299,7 +298,6 @@ class Package(CleverDict):
             if selection:
                 classifiers.extend(selection)
         self.classifiers = ", ".join(classifiers)
-        # TODO: Pre-select checkboxes based on last saved config file
 
     def get_license(self):
         """
@@ -343,7 +341,6 @@ class Package(CleverDict):
                 print(f"\nDefault license selected: {self.license_dict.name}")
                 break
         self.finalise_license()
-        # TODO: Pre-select radio button based on last saved config file
 
     def finalise_license(self):
         """
@@ -398,7 +395,6 @@ class Package(CleverDict):
                     **sg_kwargs,
                 ),
             )
-        # TODO: Save password securely e.g. with keyring
 
     def register_on_pypi(self):
         """
@@ -554,12 +550,10 @@ class Package(CleverDict):
                         f"\nⓘ You can view your package's details using 'pip show {self.name}':\n"
                     )
                     os.system(f'cmd /c "pip show {self.name}"')
-        # TODO: Automate registration: https://mechanicalsoup.readthedocs.io/
 
     def upload_to_github(self):
         """ Uploads package as a repository on Github """
         return
-        # TODO: Automate registration: https://mechanicalsoup.readthedocs.io/
 
     def __str__(self):
         output = self.info(as_str=True)
@@ -578,7 +572,6 @@ class Package(CleverDict):
             return str(decimal_version + decimal(increment))
         except dec.InvalidOperation:
             return self.version + "-new"
-        # TODO: Offer other schemas e.g. date format: 2020.21.11
 
     @staticmethod
     def prompt_with_checkboxes(group, choices):
@@ -614,5 +607,4 @@ class Package(CleverDict):
             return [choices[k] for k, v in checked.items() if v]
         if event is None:
             return
-        # TODO: Pre-select checkboxes based on last saved config file
 
