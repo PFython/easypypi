@@ -38,7 +38,7 @@ def update_line(script_lines, old_line_starts, new_value):
                     new_value = f'"{new_value}"'  # Add quotation marks unless list
                 script_lines[index] = old_line_starts + new_value.rstrip() + "\n"
                 print(
-                    f"\n✓ Updated script line {index+1}:\n{script_lines[index].rstrip()[:400]}"
+                    f"\n✓ Updated script line {index + 1}:\n{script_lines[index].rstrip()[:400]}"
                 )
                 break  # only update first occurrence
             except:
