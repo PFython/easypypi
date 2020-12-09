@@ -491,7 +491,7 @@ class Package(CleverDict):
         "test_template.py": sfp / self.name / ("test_" + self.name + ".py"),}
 
         # Read in, make replacements, create in new folder structure
-        for template_filepath, destination_path in templates:
+        for template_filepath, destination_path in templates.items():
             template_filepath = self.easypypi_dirpath / template_filepath
             with open(template_filepath, "r") as file:
                 text = file.read()
