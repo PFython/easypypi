@@ -41,6 +41,6 @@ def update_line(script_lines, old_line_starts, new_value):
                     f"\n✓ Updated script line {index + 1}:\n{script_lines[index].rstrip()[:400]}"
                 )
                 break  # only update first occurrence
-            except:
+            except (IndexError, TypeError):
                 print(new_value, type(new_value))
     return script_lines
