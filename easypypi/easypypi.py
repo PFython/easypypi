@@ -1,18 +1,24 @@
 import datetime
-import json
 import getpass
+import json
 import os
 import shutil
 import webbrowser
 from decimal import Decimal as decimal
 from pathlib import Path
-import click  # used to get cross-platform folder path for config file
+
 import PySimpleGUI as sg
+import click  # used to get cross-platform folder path for config file
+import mechanicalsoup
 from cleverdict import CleverDict
-from .shared_functions import create_file, update_line
+
+from utils import GROUP_CLASSIFIERS
+from utils import REPLACEMENTS
+from .utils import SETUP_FIELDS
 from .classifiers import classifier_list
 from .licenses import licenses_dict
-import mechanicalsoup
+from .shared_functions import create_file
+from .shared_functions import update_line
 
 # Global keyword arguments for PySimpleGUI popups:
 sg_kwargs = {
@@ -20,6 +26,7 @@ sg_kwargs = {
     "keep_on_top": True,
     "icon": Path(__file__).parent.parent / "easypypi.ico",
 }
+
 
 class Package(CleverDict):
     """
@@ -34,9 +41,9 @@ class Package(CleverDict):
 
     easypypi_dirpath = Path(__file__).parent
     config_filepath = Path(click.get_app_dir("easyPyPI")) / ("config.json")
-    setup_fields = "name version github_username url description author email keywords requirements license classifiers".split()
+    setup_fields = SETUP_FIELDS
 
-    def __init__(self, name=None, review = True, **kwargs):
+    def __init__(self, name=None, review=True, **kwargs):
         super().__init__(**kwargs)
         self.start_gui(redirect=kwargs.get("redirect"))
         self.load_defaults(name)
@@ -92,8 +99,8 @@ class Package(CleverDict):
         doesn't already exist or if the current one is empty).
         """
         if (
-            self.__class__.config_filepath.is_file()
-            and self.__class__.config_filepath.stat().st_size
+                self.__class__.config_filepath.is_file()
+                and self.__class__.config_filepath.stat().st_size
         ):
             return
         try:
@@ -175,7 +182,8 @@ class Package(CleverDict):
         setup.py and creating a new tar.gz package ready for uploading.
         """
         choice = sg.popup_yes_no(
-            f"Do you want to generate new package files (setup.py, README, LICENSE, tar.gz, etc) from the current metadata?\n",
+            "Do you want to generate new package files "
+            "(setup.py, README, LICENSE, tar.gz, etc) from the current metadata?\n",
             **sg_kwargs,
         )
         if choice != "Yes":
@@ -241,7 +249,7 @@ class Package(CleverDict):
         return getpass.getuser()
 
     def get_default_email(self):
-        return getpass.getuser().lower() + "@gmail.com"
+        return f"{getpass.getuser().lower()}@gmail.com"
 
     def get_default_keywords(self):
         default = f"{self.name}, "
@@ -263,13 +271,14 @@ class Package(CleverDict):
             "author": "Please enter the full name of the author:",
             "email": "Please enter an email address for the author:",
             "keywords": "Please enter some keywords separated by a comma:",
-            "requirements": "Please enter any packages/modules that absolutely need to be installed for yours to work, separated by commas:",
+            "requirements": "Please enter any packages/modules that absolutely "
+                            "need to be installed for yours to work, separated by commas:",
         }
         for key, prompt in prompts.items():
             default = self.get(key)
             if not default:
                 try:
-                    func = "get_default_" + key.lower()
+                    func = f"get_default_{key.lower()}"
                     default = getattr(self, func)()
                 except AttributeError:
                     pass
@@ -288,11 +297,7 @@ class Package(CleverDict):
         .classifiers updated in place as a string of comma-separated values
         """
         classifiers = []
-        for (
-            group
-        ) in "Development Status|Intended Audience|Operating System|Programming Language :: Python|Topic".split(
-            "|"
-        ):
+        for group in GROUP_CLASSIFIERS:
             choices = [x for x in classifier_list if x.startswith(group)]
             selection = self.__class__.prompt_with_checkboxes(group, choices)
             if selection is None:
@@ -308,20 +313,20 @@ class Package(CleverDict):
         Updates made in place to .license
         """
         licenses = [CleverDict(x) for x in licenses_dict]
-        layout = [[sg.Text(text=f"Please select a License for your package:")]]
-        for license in licenses:
+        layout = [[sg.Text(text="Please select a License for your package:")]]
+        for pkg_license in licenses:
             layout.extend(
                 [
                     [
                         sg.Radio(
-                            license.key.upper(),
+                            pkg_license.key.upper(),
                             "licenses",
                             font="bold 12",
-                            tooltip=license.description,
+                            tooltip=pkg_license.description,
                             size=(10, 1),
                         ),
                         sg.Text(
-                            text=license.html_url, enable_events=True, size=(40, 1)
+                            text=pkg_license.html_url, enable_events=True, size=(40, 1)
                         ),
                     ]
                 ]
@@ -352,7 +357,8 @@ class Package(CleverDict):
         replacements = dict()
         self.license = self.license_dict.body
         if self.license_dict.key == "lgpl-3.0":
-            self.license += '\nThis license is an additional set of permissions to the <a href="/licenses/gpl-3.0">GNU GPLv3</a> license which is reproduced below:\n\n'
+            self.license += '\nThis license is an additional set of permissions to the ' \
+                            '<a href="/licenses/gpl-3.0">GNU GPLv3</a> license which is reproduced below:\n\n'
             gpl = [CleverDict(x) for x in licenses_dict if x["key"] == "gpl-3.0"][0]
             self.license += gpl.body
         if self.license_dict.key == "mit":
@@ -390,12 +396,13 @@ class Package(CleverDict):
 
         account : pypi_, pypi_test_, or githhub_
         """
-        if not self.get(account + "password"):
+        if not self.get(f"{account}password"):
             setattr(
                 self,
-                account + "password",
+                f"{account}password",
                 sg.popup_get_text(
-                    f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")}password (not saved to file):',
+                    f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")}password '
+                    f'(not saved to file):',
                     password_char="*",
                     default_text=self.get(account + "password"),
                     **sg_kwargs,
@@ -424,7 +431,7 @@ class Package(CleverDict):
             "pypi_": ["PyPI", url],
             "pypi_test_": ["Test PyPI", url.replace("pypi", "test.pypi")],
             "github_": ["Github", "https://github.com/join"],
-            }.items():
+        }.items():
             if not self.get(account + "username"):
                 response = sg.popup_yes_no(
                     f"Do you need to register for an account on {repo}?", **sg_kwargs)
@@ -432,7 +439,8 @@ class Package(CleverDict):
                     return
                 if response == "Yes":
                     print(
-                        f'\n⚠ Please create a {account.title().replace("_", " ")}account, then return to easyPyPI to continue the process...')
+                        f'\n⚠ Please create a {account.title().replace("_", " ")}account, '
+                        f'then return to easyPyPI to continue the process...')
                     webbrowser.open(url)
                 self.get_username(account)
             if not self.get(account + "password"):
@@ -499,16 +507,16 @@ class Package(CleverDict):
 
         # Other files are just bare-bones initially, imported from templates:
         templates = {"readme_template.md": sfp / "README.md",
-        "init_template.py": sfp / self.name / "__init__.py",
-        "script_template.py": sfp / self.name / (self.name + ".py"),
-        "test_template.py": sfp / self.name / ("test_" + self.name + ".py"),}
+                     "init_template.py": sfp / self.name / "__init__.py",
+                     "script_template.py": sfp / self.name / (self.name + ".py"),
+                     "test_template.py": sfp / self.name / ("test_" + self.name + ".py"), }
 
         # Read in, make replacements, create in new folder structure
         for template_filepath, destination_path in templates.items():
             template_filepath = self.easypypi_dirpath / template_filepath
             with open(template_filepath, "r") as file:
                 text = file.read()
-            for replacement in "{self.name} {self.description} {self.author} {self.email} {datetime.datetime.now()}".split():
+            for replacement in REPLACEMENTS:
                 text = text.replace(replacement, eval(f"f'{replacement}'"))
             create_file(destination_path, text)
 
@@ -521,7 +529,7 @@ class Package(CleverDict):
             print("\n> Installing setuptools and twine if not already present...")
             os.system('cmd /c "python -m pip install setuptools wheel twine"')
         os.chdir(self.setup_filepath.parent)
-        print(f"\n> Running {self.setup_filepath/'setup.py'}...")
+        print(f"\n> Running {self.setup_filepath / 'setup.py'}...")
         os.system('cmd /c "setup.py sdist"')
 
     def upload_with_twine(self):
@@ -544,7 +552,10 @@ class Package(CleverDict):
             self.register_on_pypi_and_github()
         os.chdir(self.setup_filepath.parent)
         if os.system(
-            f'cmd /c "python -m twine upload --repository {params} -u {getattr(self, account + "username")} -p {getattr(self, account + "password")}"'
+                f'cmd /c "python -m twine upload '
+                f'--repository {params} '
+                f'-u {getattr(self, f"{account}username")} '
+                f'-p {getattr(self, f"{account}password")}"'
         ):
             # A return value of 1 (True) indicates an error
             print("\n⚠ Problem uploading with Twine; probably either:")
@@ -555,13 +566,15 @@ class Package(CleverDict):
             url += "" if choice == "PyPI" else "test."
             webbrowser.open(url + f"pypi.org/project/{self.name}")
             response = sg.popup_yes_no(
-                "Fantastic! Your package should now be available in your webbrowser, although you might need to wait a few minutes before it registers as the 'latest' version.\n\nDo you want to install it now using pip?\n",
+                "Fantastic! Your package should now be available in your webbrowser, "
+                "although you might need to wait a few minutes before it registers as the 'latest' version.\n\n"
+                "Do you want to install it now using pip?\n",
                 **sg_kwargs,
             )
             if response == "Yes":
                 print()
                 if not os.system(
-                    f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'
+                        f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'
                 ):
                     # A return value of 1 indicates an error, 0 indicates success
                     print(
@@ -573,7 +586,7 @@ class Package(CleverDict):
         """ Creates an empty repository on Github """
         choice = sg.popup_yes_no(
             f"Do you want to create a repository on Github?\n",
-            **sg_kwargs,)
+            **sg_kwargs, )
         if choice != "Yes":
             return
         if not (self.get("github_password") and self.get("github_username")):
@@ -607,8 +620,10 @@ class Package(CleverDict):
         git push -u origin main
         """
         choice = sg.popup_yes_no(
-            f'Do you want to upload (Push) your package to Github?\n\n⚠ CAUTION - Only recommended when creating your repository for the first time!  This automation is will run the following commands:\n\n{commands}',
-            **sg_kwargs,)
+            f'Do you want to upload (Push) your package to Github?\n\n⚠ CAUTION - '
+            f'Only recommended when creating your repository for the first time!  '
+            f'This automation is will run the following commands:\n\n{commands}',
+            **sg_kwargs, )
         if choice != "Yes":
             return
 
@@ -617,7 +632,6 @@ class Package(CleverDict):
             if not os.system(f"cmd /c {command}"):
                 # A return value of 1 indicates an error, 0 indicates success
                 print(f"\nⓘ Your package is now online at:\n  {self.url}':\n")
-
 
     def __str__(self):
         output = self.info(as_str=True)
@@ -635,7 +649,7 @@ class Package(CleverDict):
                 increment = "0.01"
             return str(decimal_version + decimal(increment))
         except dec.InvalidOperation:
-            return self.version + "-new"
+            return f"{self.version}-new"
 
     @staticmethod
     def prompt_with_checkboxes(group, choices):
@@ -671,4 +685,3 @@ class Package(CleverDict):
             return [choices[k] for k, v in checked.items() if v]
         if event is None:
             return
-
