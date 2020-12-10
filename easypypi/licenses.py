@@ -1,6 +1,9 @@
-from .shared_functions import create_file, update_line
 from pathlib import Path
+
 import requests
+
+from .shared_functions import create_file
+from .shared_functions import update_line
 
 
 def fetch_license_data():
@@ -17,10 +20,8 @@ def fetch_license_data():
         "Apache": "https://api.github.com/licenses/apache-2.0",
         "Unlicense": "https://api.github.com/licenses/unlicense",
     }
-
-    licenses = []
-    for license, api_link in api_links.items():
-        licenses += [requests.get(api_link).json()]
+    licenses = [requests.get(api_link).json()
+                for api_link in api_links.values()]
     return licenses
 
 
