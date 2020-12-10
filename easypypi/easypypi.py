@@ -574,7 +574,7 @@ class Package(CleverDict):
         choice = sg.popup_yes_no(
             f"Do you want to create a repository on Github?\n",
             **sg_kwargs,)
-        if not choice:
+        if choice != "Yes":
             return
         if not (self.get("github_password") and self.get("github_username")):
             self.register_on_pypi_and_github()
@@ -599,21 +599,21 @@ class Package(CleverDict):
 
     def upload_to_github(self):
         """ Uploads package to Github using Git"""
-        choice = sg.popup_yes_no(
-            f"Do you want to upload (Push) your package to Github?\n",
-            **sg_kwargs,)
-        if not choice:
-            return
         commands = f"""git init
         git add *.*
         git commit -m "Committing version {self.version}"
         git branch -M main
         git remote add origin https://github.com/{self.github_username}/{self.name}.git
         git push -u origin main
-        """.splitlines()
+        """
+        choice = sg.popup_yes_no(
+            f'Do you want to upload (Push) your package to Github?\n\n⚠ CAUTION - Only recommended when creating your repository for the first time!  This automation is will run the following commands:\n\n{commands}',
+            **sg_kwargs,)
+        if choice != "Yes":
+            return
 
         os.chdir(self.setup_filepath.parent)
-        for command in commands:
+        for command in commands.splitlines():
             if not os.system(f"cmd /c {command}"):
                 # A return value of 1 indicates an error, 0 indicates success
                 print(f"\nⓘ Your package is now online at:\n  {self.url}':\n")

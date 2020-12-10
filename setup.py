@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 HERE = Path(__file__).parent
 NAME = "easypypi"
 GITHUB_USERNAME = "Pfython"
-VERSION = "1.16"
+VERSION = "1.17"
 DESCRIPTION = "easyPyPI (Pronounced 'Easy Pie-Pea-Eye') is a quick, simple, one-size-fits-all solution for sharing your Python creations on the Python Package Index (PyPI) so others can just `pip install your_script` with no fuss."
 LICENSE = "MIT License"
 AUTHOR = "Peter Fison"
