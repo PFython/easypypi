@@ -722,7 +722,7 @@ class Package(CleverDict):
             return
 
 # TODO: Avoid prompting for ALL passwords if one is missing
-# TODO: Better exists from cancel or close window
+# TODO: Better exits from cancel or close window
 # TODO: Better handling of attribute errors/missing values check before function
 # e.g. decorator to check required values and call .summary()
-# .pypi_username and .pypi_test_username not saving between sessions
+# TODO: .pypi_username and .pypi_test_username not saving between sessions
