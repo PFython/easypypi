@@ -12,12 +12,12 @@ import click  # used to get cross-platform folder path for config file
 import mechanicalsoup
 from cleverdict import CleverDict
 
+from .licenses import filename
 from .utils import EASYPYPI_FIELDS
 from .utils import GROUP_CLASSIFIERS
 from .utils import REPLACEMENTS
 from .utils import SETUP_FIELDS
 from .classifiers import classifier_list
-from .licenses import licenses_dict
 from .shared_functions import create_file
 from .shared_functions import update_line
 
@@ -352,7 +352,13 @@ class Package(CleverDict):
         Choices are imported from license.licenses_dict.
         Updates made in place to .license
         """
-        licenses = [CleverDict(x) for x in licenses_dict]
+        license_dict_path = Path(filename)
+        if license_dict_path.is_file():
+            with license_dict_path.open('r') as file:
+                license_dict = json.load(file)
+            licenses = [CleverDict(x) for x in license_dict]
+        else:
+            licenses = []
         layout = [[sg.Text(text="Please select a License for your package:")]]
         for pkg_license in licenses:
             layout.extend(
