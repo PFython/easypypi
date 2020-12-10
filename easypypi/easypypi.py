@@ -13,6 +13,7 @@ import mechanicalsoup
 from cleverdict import CleverDict
 
 from .licenses import filename
+from .utils import EASYPYPI_FIELDS
 from .utils import GROUP_CLASSIFIERS
 from .utils import REPLACEMENTS
 from .utils import SETUP_FIELDS
@@ -36,21 +37,46 @@ class Package(CleverDict):
     Makes use of CleverDict's auto-save feature to store values in a config
     file, and .get_aliases() to keep a track of newly created attributes.
 
+    Exits early if prompts == False
+
     redirect : Send stdout and stderr to PySimpleGUI Debug Window
+
     """
 
     easypypi_dirpath = Path(__file__).parent
     config_filepath = Path(click.get_app_dir("easyPyPI")) / ("config.json")
     setup_fields = SETUP_FIELDS
 
-    def __init__(self, name=None, review=True, **kwargs):
+    def __init__(self, name=None, **kwargs):
+        if "prompts" in kwargs:
+            prompts = kwargs['prompts']
+            del kwargs["prompts"]
+        else:
+            prompts = True
         super().__init__(**kwargs)
+        # Caution! If kwargs are supplied, autosave will overwrite JSON confi
         self.start_gui(redirect=kwargs.get("redirect"))
-        self.load_defaults(name)
-        if review:
-            self.review()
-            self.generate()
-            self.upload()
+        self.load_defaults(name, prompts)
+        # As above... must Load before Setting any other values with autosave on
+        if self.name and self.get("setup_filepath_str"):
+            if prompts is not False:
+                self.review()
+                self.generate()
+                self.upload()
+        self.summary()
+        # Force reset of 'prompts' option in JSON config:
+        self.prompts = True
+
+    def summary(self):
+        """ Prints a summary of key fields which have not yet been set """
+        fields = EASYPYPI_FIELDS + SETUP_FIELDS
+        msg = ["."+ x for x in fields if not self.get(x)]
+        if not msg:
+            msg = "\n✓ All essential values have been set.\n  "
+        else:
+            msg = ["\n⚠ The following values have not yet been set:\n  "] + msg
+            msg = "\n  ".join(msg) + "\n"
+        print(msg)
 
     def start_gui(self, **kwargs):
         """
@@ -72,25 +98,29 @@ class Package(CleverDict):
         )
         print(f"\nⓘ Your easyPyPI config file is:\n  {self.__class__.config_filepath}")
 
-    def load_defaults(self, name=None):
+    def load_defaults(self, name=None, prompts = True):
         """
         Entry point for loading default Package values as attributes.
         Choose between last updated JSON config file, and setup.py if it exists.
+
+        Exits early if prompts == False
         """
         self.create_skeleton_config_file()
         # Important!  Defaults must be loaded from file (if possible) first:
         self.load_defaults_from_config_file()
-        if name is None:
-            name = sg.popup_get_text(
+        if name:
+            self.name = name
+        if not self.get("name"):
+            self.name = sg.popup_get_text(
                 "Please enter a name for this package (all lowercase, underscores if needed):",
                 default_text="as_easy_as_pie",
                 **sg_kwargs,
             )
-        self.name = name
-        self.create_folder_structure()
-        if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
-            # setup.py exists & isn't empty, overwrite default values from it
-            self.load_defaults_from_setup_py()
+        if prompts and self.name:
+            self.create_folder_structure()
+            if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
+                # setup.py exists & isn't empty, overwrite default values
+                self.load_defaults_from_setup_py()
 
     def create_skeleton_config_file(self):
         """
@@ -136,11 +166,11 @@ class Package(CleverDict):
         while not parent_path_str:
             parent_path_str = sg.popup_get_folder(
                 "Please select the parent folder for your package i.e. WITHOUT the package name",
-                default_path=self.setup_filepath.parent.parent,
+                default_path=self.get_default_filepath(),
                 **sg_kwargs,
             )
             if parent_path_str is None:
-                quit()
+                return
         setup_dirpath = Path(parent_path_str) / self.name
         self.setup_filepath_str = str(setup_dirpath / "setup.py")
         try:
@@ -169,11 +199,10 @@ class Package(CleverDict):
         Entry point for creating a package for the first time, or reviewing
         basic metadata for a previously created package.
         """
-        self.register_on_pypi_and_github()  # First for self.github_username
+        self.check_account_credentials("github_")  # sets self.github_username
         self.get_metadata()
-        self.get_classifiers()
         self.get_license()
-        self.copy_other_files()
+        self.get_classifiers()
         self.upversioned_already = True
 
     def generate(self):
@@ -181,6 +210,7 @@ class Package(CleverDict):
         Entry point for upversioning an existing package, recreating
         setup.py and creating a new tar.gz package ready for uploading.
         """
+        self.copy_other_files()
         choice = sg.popup_yes_no(
             "Do you want to generate new package files "
             "(setup.py, README, LICENSE, tar.gz, etc) from the current metadata?\n",
@@ -241,6 +271,16 @@ class Package(CleverDict):
         """
         return Path(self.setup_filepath_str)
 
+    def get_default_filepath(self):
+        path = Path(self.get("setup_filepath_str") or Path().cwd())
+        # Default path should be the parent of self.name and not include it
+        while path.parts[-1] in [self.name, "setup.py"]:
+            path = Path().joinpath(*path.parts[:-1])
+        return str(path)
+
+    def get_default_version(self):
+        return "0.1"
+
     def get_default_url(self):
         default = f"https://github.com/{self.github_username}"
         return default + f"/{self.name}"
@@ -282,7 +322,7 @@ class Package(CleverDict):
                     default = getattr(self, func)()
                 except AttributeError:
                     pass
-            if key == "version":
+            if key == "version" and self.get("version"):
                 default = self.next_version
             new = sg.popup_get_text(prompt, default_text=default, **sg_kwargs)
             if new is None:
@@ -353,7 +393,7 @@ class Package(CleverDict):
                 self.setattr_direct("license_dict", licenses[0])  # Default license
                 print(f"\nDefault license selected: {self.license_dict.name}")
                 break
-        self.finalise_license()
+        self.finalise_license()  # Creates .license
 
     def finalise_license(self):
         """
@@ -361,12 +401,12 @@ class Package(CleverDict):
         """
         year = str(datetime.datetime.now().year)
         replacements = dict()
-        self.license = self.license_dict.body
+        self.license_text = self.license_dict.body
         if self.license_dict.key == "lgpl-3.0":
-            self.license += '\nThis license is an additional set of permissions to the ' \
+            self.license_text += '\nThis license is an additional set of permissions to the ' \
                             '<a href="/licenses/gpl-3.0">GNU GPLv3</a> license which is reproduced below:\n\n'
             gpl = [CleverDict(x) for x in licenses_dict if x["key"] == "gpl-3.0"][0]
-            self.license += gpl.body
+            self.license_text += gpl.body
         if self.license_dict.key == "mit":
             replacements = {"[year]": year, "[fullname]": self.author}
         if self.license_dict.key in ["gpl-3.0", "lgpl-3.0", "agpl-3.0"]:
@@ -381,7 +421,7 @@ class Package(CleverDict):
             replacements = {"[yyyy]": year, "[name of copyright owner]": self.author}
         if replacements:
             for old, new in replacements.items():
-                self.license = self.license.replace(old, new)
+                self.license_text = self.license_text.replace(old, new)
 
     def get_username(self, account):
         """ Multi-purpose function to prompt for Github/PyPI/Test PyPI username"""
@@ -391,7 +431,7 @@ class Package(CleverDict):
                 account + "username",
                 sg.popup_get_text(
                     f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")}username:',
-                    default_text=self.get(account + "username"),
+                    default_text=self.get(account + "username") or self.get("github_username"),
                     **sg_kwargs,
                 ),
             )
@@ -415,7 +455,7 @@ class Package(CleverDict):
                 ),
             )
 
-    def register_on_pypi_and_github(self):
+    def check_account_credentials(self, filter=None):
         """
         Prompts for TestPyPI/PyPI account names for twine to use.
 
@@ -431,13 +471,18 @@ class Package(CleverDict):
         .pypi_test_password
         .github_password
 
+        filter : restricts the function to the account specified
+
         """
         url = r"https://pypi.org/account/register/"
-        for account, (repo, url) in {
+        accounts = {
+            "github_": ["Github", "https://github.com/join"],
             "pypi_": ["PyPI", url],
             "pypi_test_": ["Test PyPI", url.replace("pypi", "test.pypi")],
-            "github_": ["Github", "https://github.com/join"],
-        }.items():
+        }
+        if filter:
+            accounts = {k:v for k,v in accounts.items() if k == filter}
+        for account, (repo, url) in accounts.items():
             if not self.get(account + "username"):
                 response = sg.popup_yes_no(
                     f"Do you need to register for an account on {repo}?", **sg_kwargs)
@@ -483,7 +528,7 @@ class Package(CleverDict):
         for keyword in self.__class__.setup_fields:
             old_line_starts = keyword.upper() + " = "
             if keyword == "license":
-                new_value = self.license_dict.name
+                new_value = self.license
             else:
                 new_value = getattr(self, keyword)
             self.script_lines = update_line(
@@ -506,7 +551,7 @@ class Package(CleverDict):
         sfp = self.setup_filepath.parent
 
         # Create LICENSE:
-        create_file(sfp / "LICENSE", self.license, overwrite=True)
+        create_file(sfp / "LICENSE", self.license_text, overwrite=True)
 
         # Create setup.py:
         create_file(self.setup_filepath, self.script_lines, overwrite=True)
@@ -554,8 +599,7 @@ class Package(CleverDict):
             params = "testpypi"
             account = "pypi_test_"
         params += f" dist/*-{self.version}.tar.gz "
-        if not (self.get("github_password") and self.get("github_username")):
-            self.register_on_pypi_and_github()
+        self.check_account_credentials(account)
         os.chdir(self.setup_filepath.parent)
         if os.system(
                 f'cmd /c "python -m twine upload '
@@ -596,7 +640,7 @@ class Package(CleverDict):
         if choice != "Yes":
             return
         if not (self.get("github_password") and self.get("github_username")):
-            self.register_on_pypi_and_github()
+            self.check_account_credentials()
         browser = mechanicalsoup.StatefulBrowser(
             soup_config={'features': 'lxml'},
             raise_on_404=True,
@@ -618,7 +662,8 @@ class Package(CleverDict):
 
     def upload_to_github(self):
         """ Uploads package to Github using Git"""
-        commands = f"""git init
+        commands = f"""
+        git init
         git add *.*
         git commit -m "Committing version {self.version}"
         git branch -M main
@@ -632,9 +677,8 @@ class Package(CleverDict):
             **sg_kwargs, )
         if choice != "Yes":
             return
-
         os.chdir(self.setup_filepath.parent)
-        for command in commands.splitlines():
+        for command in commands.splitlines()[1:]:  # Ignore first blank line
             if not os.system(f"cmd /c {command}"):
                 # A return value of 1 indicates an error, 0 indicates success
                 print(f"\nⓘ Your package is now online at:\n  {self.url}':\n")
