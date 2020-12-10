@@ -128,4 +128,4 @@ dmypy.json
 
 
 *.pptx
-*- old.py
+*old.py
