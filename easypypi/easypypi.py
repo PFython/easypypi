@@ -12,6 +12,7 @@ import click  # used to get cross-platform folder path for config file
 import mechanicalsoup
 from cleverdict import CleverDict
 
+from .utils import EASYPYPI_FIELDS
 from .utils import GROUP_CLASSIFIERS
 from .utils import REPLACEMENTS
 from .utils import SETUP_FIELDS
@@ -50,6 +51,8 @@ class Package(CleverDict):
         super().__init__(**kwargs)
         self.start_gui(redirect=kwargs.get("redirect"))
         self.load_defaults(name)
+        # Must load before setting any other values
+        # Otherwise JSON config will be overwritten with null values
         if self.name and self.get("setup_filepath_str"):
             if self.get("prompts") is not False:
                 self.review()
@@ -61,7 +64,8 @@ class Package(CleverDict):
 
     def summary(self):
         """ Prints a summary of key fields which have not yet been set """
-        msg = ["."+ x for x in self.__class__.setup_fields if not self.get(x)]
+        fields = EASYPYPI_FIELDS + SETUP_FIELDS
+        msg = ["."+ x for x in fields if not self.get(x)]
         if not msg:
             msg = "\n✓ All essential values have been set.\n  "
         else:
@@ -99,13 +103,14 @@ class Package(CleverDict):
         self.create_skeleton_config_file()
         # Important!  Defaults must be loaded from file (if possible) first:
         self.load_defaults_from_config_file()
-        if name is None:
-            name = sg.popup_get_text(
+        if name:
+            self.name = name
+        if not self.get("name"):
+            self.name = sg.popup_get_text(
                 "Please enter a name for this package (all lowercase, underscores if needed):",
                 default_text="as_easy_as_pie",
                 **sg_kwargs,
             )
-        self.name = name
         if self.get("prompts") and self.name:
             self.create_folder_structure()
             if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
@@ -156,7 +161,7 @@ class Package(CleverDict):
         while not parent_path_str:
             parent_path_str = sg.popup_get_folder(
                 "Please select the parent folder for your package i.e. WITHOUT the package name",
-                default_path=self.setup_filepath.parent.parent,
+                default_path=self.get_default_filepath(),
                 **sg_kwargs,
             )
             if parent_path_str is None:
@@ -193,7 +198,6 @@ class Package(CleverDict):
         self.get_metadata()
         self.get_classifiers()
         self.get_license()
-        self.copy_other_files()
         self.upversioned_already = True
 
     def generate(self):
@@ -201,6 +205,7 @@ class Package(CleverDict):
         Entry point for upversioning an existing package, recreating
         setup.py and creating a new tar.gz package ready for uploading.
         """
+        self.copy_other_files()
         choice = sg.popup_yes_no(
             "Do you want to generate new package files "
             "(setup.py, README, LICENSE, tar.gz, etc) from the current metadata?\n",
@@ -260,6 +265,13 @@ class Package(CleverDict):
         is used for deciding what attributes get auto-saved to the config file.
         """
         return Path(self.setup_filepath_str)
+
+    def get_default_filepath(self):
+        path = Path(self.get("setup_filepath_str") or Path().cwd())
+        # Default path should be the parent of self.name and not include it
+        while path.parts[-1] in [self.name, "setup.py"]:
+            path = Path().joinpath(*path.parts[:-1])
+        return str(path)
 
     def get_default_version(self):
         return "0.1"
@@ -370,7 +382,7 @@ class Package(CleverDict):
                 self.setattr_direct("license_dict", licenses[0])  # Default license
                 print(f"\nDefault license selected: {self.license_dict.name}")
                 break
-            self.finalise_license()
+        self.finalise_license()  # Creates .license
 
     def finalise_license(self):
         """
@@ -378,12 +390,12 @@ class Package(CleverDict):
         """
         year = str(datetime.datetime.now().year)
         replacements = dict()
-        self.license = self.license_dict.body
+        self.license_text = self.license_dict.body
         if self.license_dict.key == "lgpl-3.0":
-            self.license += '\nThis license is an additional set of permissions to the ' \
+            self.license_text += '\nThis license is an additional set of permissions to the ' \
                             '<a href="/licenses/gpl-3.0">GNU GPLv3</a> license which is reproduced below:\n\n'
             gpl = [CleverDict(x) for x in licenses_dict if x["key"] == "gpl-3.0"][0]
-            self.license += gpl.body
+            self.license_text += gpl.body
         if self.license_dict.key == "mit":
             replacements = {"[year]": year, "[fullname]": self.author}
         if self.license_dict.key in ["gpl-3.0", "lgpl-3.0", "agpl-3.0"]:
@@ -398,7 +410,7 @@ class Package(CleverDict):
             replacements = {"[yyyy]": year, "[name of copyright owner]": self.author}
         if replacements:
             for old, new in replacements.items():
-                self.license = self.license.replace(old, new)
+                self.license_text = self.license_text.replace(old, new)
 
     def get_username(self, account):
         """ Multi-purpose function to prompt for Github/PyPI/Test PyPI username"""
@@ -466,8 +478,8 @@ class Package(CleverDict):
                         f'then return to easyPyPI to continue the process...')
                     webbrowser.open(url)
                 self.get_username(account)
-            if not self.get(account + "password"):
-                self.get_password(account)
+            # if not self.get(account + "password"):
+            #     self.get_password(account)
         self.url = self.get_default_url()  # Uses self.github_username
 
     def copy_other_files(self):
@@ -523,7 +535,7 @@ class Package(CleverDict):
         sfp = self.setup_filepath.parent
 
         # Create LICENSE:
-        create_file(sfp / "LICENSE", self.license, overwrite=True)
+        create_file(sfp / "LICENSE", self.license_text, overwrite=True)
 
         # Create setup.py:
         create_file(self.setup_filepath, self.script_lines, overwrite=True)
@@ -712,3 +724,5 @@ class Package(CleverDict):
 # TODO: Avoid prompting for ALL passwords if one is missing
 # TODO: Better exists from cancel or close window
 # TODO: Better handling of attribute errors/missing values check before function
+# e.g. decorator to check required values and call .summary()
+# .pypi_username and .pypi_test_username not saving between sessions

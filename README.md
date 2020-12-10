@@ -103,6 +103,10 @@ This entry point also includes a handy option to auto-create a new (private) Git
 
 # 4. OTHER FEATURES
 
+Check which essential values haven't yet been set:
+
+    >>> package.summary()
+
 Automatically generate the next version number for your `Package` (more schemas coming soon):
 
     >>> package.version = "1.1"

@@ -34,8 +34,11 @@ def update_line(script_lines, old_line_starts, new_value):
     for index, line in enumerate(script_lines.copy()):
         if line.lstrip().startswith(old_line_starts):
             try:
-                if not new_value.startswith("["):
-                    new_value = f'"{new_value}"'  # Add quotation marks unless list
+                if isinstance(new_value, list):
+                # Add quotation marks unless list
+                    new_value = str(new_value)
+                else:
+                    new_value = f'"{new_value}"'
                 script_lines[index] = old_line_starts + new_value.rstrip() + "\n"
                 print(
                     f"\n✓ Updated script line {index + 1}:\n{script_lines[index].rstrip()[:400]}"

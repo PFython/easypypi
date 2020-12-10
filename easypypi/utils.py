@@ -9,9 +9,6 @@ SETUP_FIELDS = [
     'name',
     'version',
     'github_username',
-    'twine_username',
-    'twine_test_username',
-    'setup_filepath_str',
     'url',
     'description',
     'author',
@@ -20,6 +17,12 @@ SETUP_FIELDS = [
     'requirements',
     'license',
     'classifiers',
+]
+
+EASYPYPI_FIELDS = [
+    'pypi_username',
+    'pypi_test_username',
+    'setup_filepath_str',
 ]
 
 GROUP_CLASSIFIERS = [
