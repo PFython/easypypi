@@ -12,8 +12,8 @@ import click  # used to get cross-platform folder path for config file
 import mechanicalsoup
 from cleverdict import CleverDict
 
-from utils import GROUP_CLASSIFIERS
-from utils import REPLACEMENTS
+from .utils import GROUP_CLASSIFIERS
+from .utils import REPLACEMENTS
 from .utils import SETUP_FIELDS
 from .classifiers import classifier_list
 from .licenses import licenses_dict
@@ -36,21 +36,38 @@ class Package(CleverDict):
     Makes use of CleverDict's auto-save feature to store values in a config
     file, and .get_aliases() to keep a track of newly created attributes.
 
+    Exits early if review == False
+
     redirect : Send stdout and stderr to PySimpleGUI Debug Window
+
     """
 
     easypypi_dirpath = Path(__file__).parent
     config_filepath = Path(click.get_app_dir("easyPyPI")) / ("config.json")
     setup_fields = SETUP_FIELDS
 
-    def __init__(self, name=None, review=True, **kwargs):
+    def __init__(self, name=None, **kwargs):
         super().__init__(**kwargs)
         self.start_gui(redirect=kwargs.get("redirect"))
         self.load_defaults(name)
-        if review:
-            self.review()
-            self.generate()
-            self.upload()
+        if self.name and self.get("setup_filepath_str"):
+            if self.get("prompts") is not False:
+                self.review()
+                self.generate()
+                self.upload()
+        self.summary()
+        # Force reset of 'prompts' option in JSON config:
+        self.prompts = True
+
+    def summary(self):
+        """ Prints a summary of key fields which have not yet been set """
+        msg = ["."+ x for x in self.__class__.setup_fields if not self.get(x)]
+        if not msg:
+            msg = "\n✓ All essential values have been set.\n  "
+        else:
+            msg = ["\n⚠ The following values have not yet been set:\n  "] + msg
+            msg = "\n  ".join(msg) + "\n"
+        print(msg)
 
     def start_gui(self, **kwargs):
         """
@@ -76,6 +93,8 @@ class Package(CleverDict):
         """
         Entry point for loading default Package values as attributes.
         Choose between last updated JSON config file, and setup.py if it exists.
+
+        Exits early if review == False
         """
         self.create_skeleton_config_file()
         # Important!  Defaults must be loaded from file (if possible) first:
@@ -87,10 +106,11 @@ class Package(CleverDict):
                 **sg_kwargs,
             )
         self.name = name
-        self.create_folder_structure()
-        if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
-            # setup.py exists & isn't empty, overwrite default values from it
-            self.load_defaults_from_setup_py()
+        if self.get("prompts") and self.name:
+            self.create_folder_structure()
+            if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
+                # setup.py exists & isn't empty, overwrite default values
+                self.load_defaults_from_setup_py()
 
     def create_skeleton_config_file(self):
         """
@@ -140,7 +160,7 @@ class Package(CleverDict):
                 **sg_kwargs,
             )
             if parent_path_str is None:
-                quit()
+                return
         setup_dirpath = Path(parent_path_str) / self.name
         self.setup_filepath_str = str(setup_dirpath / "setup.py")
         try:
@@ -241,6 +261,9 @@ class Package(CleverDict):
         """
         return Path(self.setup_filepath_str)
 
+    def get_default_version(self):
+        return "0.1"
+
     def get_default_url(self):
         default = f"https://github.com/{self.github_username}"
         return default + f"/{self.name}"
@@ -282,7 +305,7 @@ class Package(CleverDict):
                     default = getattr(self, func)()
                 except AttributeError:
                     pass
-            if key == "version":
+            if key == "version" and self.get("version"):
                 default = self.next_version
             new = sg.popup_get_text(prompt, default_text=default, **sg_kwargs)
             if new is None:
@@ -347,7 +370,7 @@ class Package(CleverDict):
                 self.setattr_direct("license_dict", licenses[0])  # Default license
                 print(f"\nDefault license selected: {self.license_dict.name}")
                 break
-        self.finalise_license()
+            self.finalise_license()
 
     def finalise_license(self):
         """
@@ -385,7 +408,7 @@ class Package(CleverDict):
                 account + "username",
                 sg.popup_get_text(
                     f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")}username:',
-                    default_text=self.get(account + "username"),
+                    default_text=self.get(account + "username") or self.get("github_username"),
                     **sg_kwargs,
                 ),
             )
@@ -428,9 +451,9 @@ class Package(CleverDict):
         """
         url = r"https://pypi.org/account/register/"
         for account, (repo, url) in {
+            "github_": ["Github", "https://github.com/join"],
             "pypi_": ["PyPI", url],
             "pypi_test_": ["Test PyPI", url.replace("pypi", "test.pypi")],
-            "github_": ["Github", "https://github.com/join"],
         }.items():
             if not self.get(account + "username"):
                 response = sg.popup_yes_no(
@@ -685,3 +708,7 @@ class Package(CleverDict):
             return [choices[k] for k, v in checked.items() if v]
         if event is None:
             return
+
+# TODO: Avoid prompting for ALL passwords if one is missing
+# TODO: Better exists from cancel or close window
+# TODO: Better handling of attribute errors/missing values check before function
