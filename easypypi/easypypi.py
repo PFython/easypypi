@@ -37,7 +37,7 @@ class Package(CleverDict):
     Makes use of CleverDict's auto-save feature to store values in a config
     file, and .get_aliases() to keep a track of newly created attributes.
 
-    Exits early if review == False
+    Exits early if prompts == False
 
     redirect : Send stdout and stderr to PySimpleGUI Debug Window
 
@@ -48,13 +48,18 @@ class Package(CleverDict):
     setup_fields = SETUP_FIELDS
 
     def __init__(self, name=None, **kwargs):
+        if "prompts" in kwargs:
+            prompts = kwargs['prompts']
+            del kwargs["prompts"]
+        else:
+            prompts = True
         super().__init__(**kwargs)
+        # Caution! If kwargs are supplied, autosave will overwrite JSON confi
         self.start_gui(redirect=kwargs.get("redirect"))
-        self.load_defaults(name)
-        # Must load before setting any other values
-        # Otherwise JSON config will be overwritten with null values
+        self.load_defaults(name, prompts)
+        # As above... must Load before Setting any other values with autosave on
         if self.name and self.get("setup_filepath_str"):
-            if self.get("prompts") is not False:
+            if prompts is not False:
                 self.review()
                 self.generate()
                 self.upload()
@@ -93,12 +98,12 @@ class Package(CleverDict):
         )
         print(f"\nⓘ Your easyPyPI config file is:\n  {self.__class__.config_filepath}")
 
-    def load_defaults(self, name=None):
+    def load_defaults(self, name=None, prompts = True):
         """
         Entry point for loading default Package values as attributes.
         Choose between last updated JSON config file, and setup.py if it exists.
 
-        Exits early if review == False
+        Exits early if prompts == False
         """
         self.create_skeleton_config_file()
         # Important!  Defaults must be loaded from file (if possible) first:
@@ -111,7 +116,7 @@ class Package(CleverDict):
                 default_text="as_easy_as_pie",
                 **sg_kwargs,
             )
-        if self.get("prompts") and self.name:
+        if prompts and self.name:
             self.create_folder_structure()
             if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
                 # setup.py exists & isn't empty, overwrite default values
@@ -194,10 +199,10 @@ class Package(CleverDict):
         Entry point for creating a package for the first time, or reviewing
         basic metadata for a previously created package.
         """
-        self.register_on_pypi_and_github()  # First for self.github_username
+        self.check_account_credentials("github_")  # sets self.github_username
         self.get_metadata()
-        self.get_classifiers()
         self.get_license()
+        self.get_classifiers()
         self.upversioned_already = True
 
     def generate(self):
@@ -444,7 +449,7 @@ class Package(CleverDict):
                 ),
             )
 
-    def register_on_pypi_and_github(self):
+    def check_account_credentials(self, filter=None):
         """
         Prompts for TestPyPI/PyPI account names for twine to use.
 
@@ -460,13 +465,18 @@ class Package(CleverDict):
         .pypi_test_password
         .github_password
 
+        filter : restricts the function to the account specified
+
         """
         url = r"https://pypi.org/account/register/"
-        for account, (repo, url) in {
+        accounts = {
             "github_": ["Github", "https://github.com/join"],
             "pypi_": ["PyPI", url],
             "pypi_test_": ["Test PyPI", url.replace("pypi", "test.pypi")],
-        }.items():
+        }
+        if filter:
+            accounts = {k:v for k,v in accounts.items() if k == filter}
+        for account, (repo, url) in accounts.items():
             if not self.get(account + "username"):
                 response = sg.popup_yes_no(
                     f"Do you need to register for an account on {repo}?", **sg_kwargs)
@@ -478,8 +488,8 @@ class Package(CleverDict):
                         f'then return to easyPyPI to continue the process...')
                     webbrowser.open(url)
                 self.get_username(account)
-            # if not self.get(account + "password"):
-            #     self.get_password(account)
+            if not self.get(account + "password"):
+                self.get_password(account)
         self.url = self.get_default_url()  # Uses self.github_username
 
     def copy_other_files(self):
@@ -512,7 +522,7 @@ class Package(CleverDict):
         for keyword in self.__class__.setup_fields:
             old_line_starts = keyword.upper() + " = "
             if keyword == "license":
-                new_value = self.license_dict.name
+                new_value = self.license
             else:
                 new_value = getattr(self, keyword)
             self.script_lines = update_line(
@@ -583,8 +593,7 @@ class Package(CleverDict):
             params = "testpypi"
             account = "pypi_test_"
         params += f" dist/*-{self.version}.tar.gz "
-        if not (self.get("github_password") and self.get("github_username")):
-            self.register_on_pypi_and_github()
+        self.check_account_credentials(account)
         os.chdir(self.setup_filepath.parent)
         if os.system(
                 f'cmd /c "python -m twine upload '
@@ -625,7 +634,7 @@ class Package(CleverDict):
         if choice != "Yes":
             return
         if not (self.get("github_password") and self.get("github_username")):
-            self.register_on_pypi_and_github()
+            self.check_account_credentials()
         browser = mechanicalsoup.StatefulBrowser(
             soup_config={'features': 'lxml'},
             raise_on_404=True,
@@ -647,7 +656,8 @@ class Package(CleverDict):
 
     def upload_to_github(self):
         """ Uploads package to Github using Git"""
-        commands = f"""git init
+        commands = f"""
+        git init
         git add *.*
         git commit -m "Committing version {self.version}"
         git branch -M main
@@ -661,9 +671,8 @@ class Package(CleverDict):
             **sg_kwargs, )
         if choice != "Yes":
             return
-
         os.chdir(self.setup_filepath.parent)
-        for command in commands.splitlines():
+        for command in commands.splitlines()[1:]:  # Ignore first blank line
             if not os.system(f"cmd /c {command}"):
                 # A return value of 1 indicates an error, 0 indicates success
                 print(f"\nⓘ Your package is now online at:\n  {self.url}':\n")
@@ -720,9 +729,3 @@ class Package(CleverDict):
             return [choices[k] for k, v in checked.items() if v]
         if event is None:
             return
-
-# TODO: Avoid prompting for ALL passwords if one is missing
-# TODO: Better exits from cancel or close window
-# TODO: Better handling of attribute errors/missing values check before function
-# e.g. decorator to check required values and call .summary()
-# TODO: .pypi_username and .pypi_test_username not saving between sessions

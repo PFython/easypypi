@@ -6,22 +6,27 @@
 """
 
 SETUP_FIELDS = [
-    'name',
-    'version',
-    'github_username',
-    'url',
-    'description',
     'author',
-    'email',
-    'keywords',
-    'requirements',
-    'license',
     'classifiers',
+    'description',
+    'email',
+    'github_username',
+    'keywords',
+    'license',
+    'name',
+    'requirements',
+    'url',
+    'version',
 ]
 
 EASYPYPI_FIELDS = [
-    'pypi_username',
+    'github_password',
+    'license_text',
+    'pypi_password',
+    'pypi_test_password',
     'pypi_test_username',
+    'pypi_username',
+    'script_lines',
     'setup_filepath_str',
 ]
 
@@ -34,9 +39,9 @@ GROUP_CLASSIFIERS = [
 ]
 
 REPLACEMENTS = [
-    '{self.name}',
-    '{self.description}',
     '{self.author}',
+    '{self.description}',
     '{self.email}',
+    '{self.name}',
     '{datetime.datetime.now()}',
 ]

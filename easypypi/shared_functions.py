@@ -36,7 +36,7 @@ def update_line(script_lines, old_line_starts, new_value):
             try:
                 if isinstance(new_value, list):
                 # Add quotation marks unless list
-                    new_value = str(new_value)
+                    new_value = ", ".join(new_value)
                 else:
                     new_value = f'"{new_value}"'
                 script_lines[index] = old_line_starts + new_value.rstrip() + "\n"
