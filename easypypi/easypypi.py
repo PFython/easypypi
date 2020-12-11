@@ -109,7 +109,7 @@ class Package(CleverDict):
         self.load_defaults_from_config_file()
         if name:
             self.name = name
-        if not self.get("name"):
+        else:
             self.name = sg.popup_get_text(
                 "Please enter a name for this package (all lowercase, underscores if needed):",
                 default_text="as_easy_as_pie",
