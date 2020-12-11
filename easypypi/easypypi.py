@@ -9,7 +9,6 @@ from pathlib import Path
 
 import PySimpleGUI as sg
 import click  # used to get cross-platform folder path for config file
-import mechanicalsoup
 from cleverdict import CleverDict
 
 from .licenses import filename
@@ -512,7 +511,7 @@ class Package(CleverDict):
         if files is None:
             return
         for file in [Path(x) for x in files.split(";")]:
-            new_file = self.setup_filepath / self.name / file.name
+            new_file = self.setup_filepath.parent / self.name / file.name
             if new_file.is_file():
                 response = sg.popup_yes_no(
                     f"WARNING\n\n{file.name} already exists in\n{new_file.parent}\n\n Overwrite?",
