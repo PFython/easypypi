@@ -20,7 +20,7 @@ import {self.name}
 
 # 5. CONTRIBUTING
 
-Contact {self.author} {self.email} or raise Pull Requests / Issue in the normal Github way.
+Contact {self.author} {self.email} or feel free to raise Pull Requests / Issue in the normal Github way.
 
 # 6. CREDITS
 
