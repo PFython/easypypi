@@ -113,7 +113,7 @@ class Package(CleverDict):
         else:
             self.name = sg.popup_get_text(
                 "Please enter a name for this package (all lowercase, underscores if needed):",
-                default_text="as_easy_as_pie",
+                default_text=self.get("name") or "as_easy_as_pie",
                 **sg_kwargs,
             )
         if prompts and self.name:
