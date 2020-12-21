@@ -7,6 +7,7 @@ import shutil
 import webbrowser
 from decimal import Decimal as decimal
 from pathlib import Path
+import keyring
 
 import PySimpleGUI as sg
 import click  # used to get cross-platform folder path for config file
@@ -28,6 +29,9 @@ sg_kwargs = {
     "icon": Path(__file__).parent.parent / "easypypi.ico",
 }
 
+keyring_config_root = keyring.util.platform_.config_root()
+keyring_data_root = keyring.util.platform_.data_root()
+
 
 class Package(CleverDict):
     """
@@ -37,7 +41,7 @@ class Package(CleverDict):
     Makes use of CleverDict's auto-save feature to store values in a config
     file, and .get_aliases() to keep a track of newly created attributes.
 
-    Exits early if prompts == False
+    Exits early if review is False or _break is True
 
     redirect : Send stdout and stderr to PySimpleGUI Debug Window
 
@@ -48,24 +52,58 @@ class Package(CleverDict):
     setup_fields = SETUP_FIELDS
 
     def __init__(self, name=None, **kwargs):
-        if "prompts" in kwargs:
-            prompts = kwargs['prompts']
-            del kwargs["prompts"]
-        else:
-            prompts = True
+        options, kwargs = self.get_options_from_kwargs(**kwargs)
         super().__init__(**kwargs)
         # Caution! If kwargs are supplied, autosave will overwrite JSON confi
-        self.start_gui(redirect=kwargs.get("redirect"))
-        self.load_defaults(name, prompts)
+        self.start_gui(redirect=options["redirect"])
+        self.load_defaults(name, options['review'])
+        if options['_break'] is True:
+            return
         # As above... must Load before Setting any other values with autosave on
         if self.name and self.get("setup_filepath_str"):
-            if prompts is not False:
+            if options['review'] is not False:
                 self.review()
-                self.generate()
-                self.upload()
+            self.generate()
+            self.upload()
         self.summary()
-        # Force reset of 'prompts' option in JSON config:
-        self.prompts = True
+        # Force reset of 'review' option in JSON config:
+        self.review = True
+
+
+    def set_username(self, account):
+        setattr(
+            self,
+            account + "_username",
+            sg.popup_get_text(
+                f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")} username:',
+                default_text=self.get(account + "username") or self.get("github_username"),
+                **sg_kwargs,
+            ),
+        )
+
+    def delete_credentials(self, account):
+        """
+        Delete password AND username from keyring.
+        .username remains in memory but .password was only ever an @property.
+        """
+        username = self.get(f"{account}_username")
+        choice = sg.popup_yes_no(f"Do you really want to delete {account} credentials for {username}?")
+        if choice == "Yes":
+            keyring.delete_password(account, username)
+            del self[f"{account}_password"]
+            del self[f"{account}_username"]
+
+
+    def get_options_from_kwargs(self, **kwargs):
+        """ Separate actionable options from general data in kwargs."""
+        options = {}
+        for key, default_value in {"review": True, "_break": False, "redirect": False}.items():
+            if isinstance(kwargs.get(key), bool):
+                options[key] = kwargs.get(key)
+                del kwargs[key]
+            else:
+                options[key] = default_value
+        return options, kwargs
 
     def summary(self):
         """ Prints a summary of key fields which have not yet been set """
@@ -98,12 +136,12 @@ class Package(CleverDict):
         )
         print(f"\nⓘ Your easyPyPI config file is:\n  {self.__class__.config_filepath}")
 
-    def load_defaults(self, name=None, prompts = True):
+    def load_defaults(self, name=None, review= True):
         """
         Entry point for loading default Package values as attributes.
         Choose between last updated JSON config file, and setup.py if it exists.
 
-        Exits early if prompts == False
+        Exits early if review == False
         """
         self.create_skeleton_config_file()
         # Important!  Defaults must be loaded from file (if possible) first:
@@ -116,7 +154,7 @@ class Package(CleverDict):
                 default_text=self.get("name") or "as_easy_as_pie",
                 **sg_kwargs,
             )
-        if prompts and self.name:
+        if review and self.name:
             self.create_folder_structure()
             if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
                 # setup.py exists & isn't empty, overwrite default values
@@ -199,7 +237,6 @@ class Package(CleverDict):
         Entry point for creating a package for the first time, or reviewing
         basic metadata for a previously created package.
         """
-        self.check_account_credentials("github_")  # sets self.github_username
         self.get_metadata()
         self.get_license()
         self.get_classifiers()
@@ -423,38 +460,6 @@ class Package(CleverDict):
             for old, new in replacements.items():
                 self.license_text = self.license_text.replace(old, new)
 
-    def get_username(self, account):
-        """ Multi-purpose function to prompt for Github/PyPI/Test PyPI username"""
-        if not self.get(account + "username"):
-            setattr(
-                self,
-                account + "username",
-                sg.popup_get_text(
-                    f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")}username:',
-                    default_text=self.get(account + "username") or self.get("github_username"),
-                    **sg_kwargs,
-                ),
-            )
-
-    def get_password(self, account):
-        """
-        Multi-purpose function to prompt for Github/PyPI/Test PyPI password
-
-        account : pypi_, pypi_test_, or githhub_
-        """
-        if not self.get(f"{account}password"):
-            setattr(
-                self,
-                f"{account}password",
-                sg.popup_get_text(
-                    f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")}password '
-                    f'(not saved to file):',
-                    password_char="*",
-                    default_text=self.get(account + "password"),
-                    **sg_kwargs,
-                ),
-            )
-
     def check_account_credentials(self, filter=None):
         """
         Prompts for TestPyPI/PyPI account names for twine to use.
@@ -467,9 +472,6 @@ class Package(CleverDict):
         .pypi_username
         .pypi_test_username
         .github_username
-        .pypi_password
-        .pypi_test_password
-        .github_password
 
         filter : restricts the function to the account specified
 
@@ -585,27 +587,30 @@ class Package(CleverDict):
 
     def upload_with_twine(self):
         """ Uploads to PyPI or Test PyPI with twine """
-        choice = sg.popup(
+        account = sg.popup(
             f"Do you want to upload {self.name} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n",
             **sg_kwargs,
             custom_text=("Test PyPI", "PyPI"),
         )
-        if not choice:
+        if not account:
             return
-        if choice == "PyPI":
+        if account == "PyPI":
             params = "pypi"
-            account = "pypi_"
-        if choice == "Test PyPI":
+        if account == "Test PyPI":
             params = "testpypi"
-            account = "pypi_test_"
+            account = "Test_PyPI"
+        if not self.get_username(account):
+            return
+        username = getattr(self, f"{account}_username")
+        if not self.check_password(account):
+            return
         params += f" dist/*-{self.version}.tar.gz "
-        self.check_account_credentials(account)
         os.chdir(self.setup_filepath.parent)
         if os.system(
                 f'cmd /c "python -m twine upload '
                 f'--repository {params} '
-                f'-u {getattr(self, f"{account}username")} '
-                f'-p {getattr(self, f"{account}password")}"'
+                f'-u {username} '
+                f'-p {keyring.get_password(account, username)}"'
         ):
             # A return value of 1 (True) indicates an error
             print("\n⚠ Problem uploading with Twine; probably either:")
@@ -613,7 +618,7 @@ class Package(CleverDict):
             print("   - Using an existing version number.  Try a new version number?")
         else:
             url = "https://"
-            url += "" if choice == "PyPI" else "test."
+            url += "" if account == "PyPI" else "test."
             webbrowser.open(url + f"pypi.org/project/{self.name}")
             response = sg.popup_yes_no(
                 "Fantastic! Your package should now be available in your webbrowser, "
@@ -631,6 +636,65 @@ class Package(CleverDict):
                         f"\nⓘ You can view your package's details using 'pip show {self.name}':\n"
                     )
                     os.system(f'cmd /c "pip show {self.name}"')
+
+    def get_username(self, account):
+        """
+        Loads username for a given account from `keyring` or prompts for a
+        value if (account, None) fails e.g. on iOS.
+
+        Parameters:
+        account -> "Github", "PyPI" or "Test_PyPI"
+
+        Sets:
+        .{account}_username
+
+        Returns:
+        True if successful
+        False if "cancel", "", or "X".
+        """
+        if not self.get(f"{account}_username"):
+            try:
+                username = keyring.get_credential(account, None).username
+            except AttributeError:
+                username = sg.popup_get_text(
+                        f'Please enter your {account.replace("_", " ")} username (not saved to file):',
+                        default_text=self.get("Github_username"),
+                        **sg_kwargs,
+                    )
+            if not username:
+                return False
+            setattr(self, f"{account}_username", username)
+            return True
+
+    def check_password(self, account):
+        """
+        Checks that a password exists for a given account using `keyring` or
+        prompts for a value if not.
+
+        Parameters:
+        account -> "Github", "PyPI" or "Test_PyPI"
+
+        Sets:
+        keyring credentials
+
+        Returns:
+        True if successful
+        False if "cancel", "", or "X".
+        """
+        if not self.get(f"{account}_password"):
+            pw = keyring.get_password(account, getattr(self, account+"_username"))
+            if not pw:
+                pw = sg.popup_get_text(
+                    f'Please enter your {account.replace("_", " ")} password (not saved to file):',
+                    password_char="*",
+                    **sg_kwargs,
+                )
+            if not pw:
+                return False
+            setattr(self, f"{account}_password", pw)
+            keyring.set_password(account, getattr(self, account+"_username"), pw)
+            return True
+
 
     def create_github_repository(self):
         """ Creates an empty repository on Github """

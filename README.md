@@ -55,9 +55,13 @@ Thanks to the magic of [`cleverdict`](https://github.com/pfython/cleverdict) you
 
 Your last set of answers (except passwords) are stored in a JSON config file will be kept up to date automatically when you change values.  The location defaults to the recommended setting folder for your Operating System.
 
-If you want to create a `Package` object but skip the default review of metadata and return early to the command line, you can use the `prompts` keyword argument:
+If you want to create a skeleton `Package` object but return early to the command line, you can use the `_break` keyword argument:
 
-    >>> package = Package("as_easy_as_pie", prompts=False)
+    >>> package = Package("as_easy_as_pie", _break=True)
+
+If you want to create a `Package` object but skip the default review of metadata, you can use the `review` keyword argument:
+
+    >>> package = Package("as_easy_as_pie", review=False)
 
 
 # 3. THE FOUR STEP PROCESS

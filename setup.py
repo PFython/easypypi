@@ -16,7 +16,7 @@ EMAIL = "peter@southwestlondon.tv"
 URL = "https://github.com/Pfython/easypypi"
 KEYWORDS = "easypypi, Peter Fison, Pfython, pip, package, publish, share, build, deploy, Python"
 CLASSIFIERS = "Development Status :: 4 - Beta, Intended Audience :: Developers, Operating System :: OS Independent, Programming Language :: Python :: 3.6, Programming Language :: Python :: 3.7, Programming Language :: Python :: 3.8, Programming Language :: Python :: 3.9, Topic :: Software Development :: Build Tools, Topic :: Software Development :: Version Control :: Git, Topic :: System :: Archiving :: Packaging, Topic :: System :: Installation/Setup, Topic :: System :: Software Distribution, Topic :: Utilities"
-REQUIREMENTS = "cleverdict, pysimplegui, click, requests, twine, mechanicalsoup"
+REQUIREMENTS = "cleverdict, pysimplegui, click, requests, twine, keyring, mechanicalsoup"
 
 
 def comma_split(text: str):
