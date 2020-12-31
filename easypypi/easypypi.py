@@ -21,6 +21,7 @@ from .utils import SETUP_FIELDS
 from .classifiers import classifier_list
 from .shared_functions import create_file
 from .shared_functions import update_line
+from keyring.errors import PasswordDeleteError
 
 # Global keyword arguments for PySimpleGUI popups:
 sg_kwargs = {
@@ -54,7 +55,7 @@ class Package(CleverDict):
     def __init__(self, name=None, **kwargs):
         options, kwargs = self.get_options_from_kwargs(**kwargs)
         super().__init__(**kwargs)
-        # Caution! If kwargs are supplied, autosave will overwrite JSON confi
+        # Caution! If kwargs are supplied, autosave will overwrite JSON config
         self.start_gui(redirect=options["redirect"])
         self.load_defaults(name, options['review'])
         if options['_break'] is True:
@@ -69,17 +70,63 @@ class Package(CleverDict):
         # Force reset of 'review' option in JSON config:
         self.review = True
 
+    def get_username(self, account):
+        """
+        Loads username for a given account from `keyring` or prompts for a
+        value if (account, None) fails e.g. on iOS.
 
-    def set_username(self, account):
-        setattr(
-            self,
-            account + "_username",
-            sg.popup_get_text(
-                f'Please enter your {account.title().replace("_", " ").replace("pi", "PI")} username:',
-                default_text=self.get(account + "username") or self.get("github_username"),
-                **sg_kwargs,
-            ),
-        )
+        Parameters:
+        account -> "Github", "PyPI" or "Test_PyPI"
+
+        Sets:
+        .{account}_username
+
+        Returns:
+        True if successful
+        False if "cancel", "", or "X".
+        """
+        if not self.get(f"{account}_username"):
+            try:
+                username = keyring.get_credential(account, None).username
+            except AttributeError:
+                username = sg.popup_get_text(
+                        f'Please enter your {account.replace("_", " ")} username (not saved to file):',
+                        default_text=self.get("Github_username"),
+                        **sg_kwargs,
+                    )
+            if not username:
+                return False
+            setattr(self, f"{account}_username", username)
+        return True
+
+    def check_password(self, account):
+        """
+        Checks that a password exists for a given account using `keyring` or
+        prompts for a value if not.
+
+        Parameters:
+        account -> "Github", "PyPI" or "Test_PyPI"
+
+        Sets:
+        keyring credentials
+
+        Returns:
+        True if successful
+        False if "cancel", "", or "X".
+        """
+        if not self.get(f"{account}_password"):
+            pw = keyring.get_password(account, getattr(self, account+"_username"))
+            if not pw:
+                pw = sg.popup_get_text(
+                    f'Please enter your {account.replace("_", " ")} password (not saved to file):',
+                    password_char="*",
+                    **sg_kwargs,
+                )
+            if not pw:
+                return False
+            setattr(self, f"{account}_password", pw)
+            keyring.set_password(account, getattr(self, account+"_username"), pw)
+        return True
 
     def delete_credentials(self, account):
         """
@@ -87,12 +134,15 @@ class Package(CleverDict):
         .username remains in memory but .password was only ever an @property.
         """
         username = self.get(f"{account}_username")
-        choice = sg.popup_yes_no(f"Do you really want to delete {account} credentials for {username}?")
+        choice = sg.popup_yes_no(f"Do you really want to delete {account} credentials for {username}?", **sg_kwargs)
         if choice == "Yes":
-            keyring.delete_password(account, username)
-            del self[f"{account}_password"]
-            del self[f"{account}_username"]
-
+            for key in [f"{account}_username", f"{account}_password"]:
+                if self.get(key):
+                    del self[key]
+            try:
+                keyring.delete_password(account, username)
+            except PasswordDeleteError:
+                print("\n ⓘ  keyring Credentials couldn't be deleted. Perhaps they already were?")
 
     def get_options_from_kwargs(self, **kwargs):
         """ Separate actionable options from general data in kwargs."""
@@ -112,7 +162,7 @@ class Package(CleverDict):
         if not msg:
             msg = "\n✓ All essential values have been set.\n  "
         else:
-            msg = ["\n⚠ The following values have not yet been set:\n  "] + msg
+            msg = ["\n ⚠  The following values have not yet been set:\n  "] + msg
             msg = "\n  ".join(msg) + "\n"
         print(msg)
 
@@ -131,10 +181,10 @@ class Package(CleverDict):
         )
         options = {"do_not_reroute_stdout": False, "keep_on_top": True}
         print(
-            f"\nⓘ easyPyPI template files are located in:\n  {self.__class__.easypypi_dirpath}",
+            f"\n ⓘ  easyPyPI template files are located in:\n  {self.__class__.easypypi_dirpath}",
             **options if kwargs.get("redirect") else {},
         )
-        print(f"\nⓘ Your easyPyPI config file is:\n  {self.__class__.config_filepath}")
+        print(f"\n ⓘ  Your easyPyPI config file is:\n  {self.__class__.config_filepath}")
 
     def load_defaults(self, name=None, review= True):
         """
@@ -173,12 +223,12 @@ class Package(CleverDict):
             return
         try:
             os.makedirs(self.__class__.config_filepath.parent)
-            print(f"ⓘ Folder created:\n {self.__class__.config_filepath.parent}")
+            print(f"\n ⓘ  Folder created:\n {self.__class__.config_filepath.parent}")
         except FileExistsError:
             pass
         with open(self.__class__.config_filepath, "w") as file:
             json.dump({"version": "0.1"}, file)  # Create skeleton .json file
-        print(f"\n⚠ Skeleton config file created:\n  {self.__class__.config_filepath}")
+        print(f"\n ⚠  Skeleton config file created:\n  {self.__class__.config_filepath}")
 
     def load_defaults_from_config_file(self):
         """
@@ -198,8 +248,6 @@ class Package(CleverDict):
         Creates skeleton folder structure for a package and starter files.
         Creates .setup_filepath_str.
         """
-        if not hasattr(self, "setup_filepath"):
-            self.setup_filepath_str = str(Path.cwd() / self.name / "setup.py")
         parent_path_str = ""
         while not parent_path_str:
             parent_path_str = sg.popup_get_folder(
@@ -215,7 +263,7 @@ class Package(CleverDict):
             os.makedirs(setup_dirpath / self.name)
             print(f"\n✓ Created package folder:\n  {setup_dirpath}")
         except FileExistsError:
-            print(f"\nⓘ Package folder already exists:\n  {setup_dirpath}")
+            print(f"\n ⓘ  Package folder already exists:\n  {setup_dirpath}")
 
     def load_defaults_from_setup_py(self):
         """
@@ -294,8 +342,6 @@ class Package(CleverDict):
                 location = "memory but NOT saved to file"
             else:
                 location = self.__class__.config_filepath
-            # Enable to confirm auto-save is working:
-            # print(f"ⓘ '{key}' updated in {location}")
 
     @property
     def setup_filepath(self):
@@ -319,7 +365,8 @@ class Package(CleverDict):
         return "0.1"
 
     def get_default_url(self):
-        default = f"https://github.com/{self.github_username}"
+        self.get_username("Github")
+        default = f"https://github.com/{self.get('Github_username')}"
         return default + f"/{self.name}"
 
     def get_default_author(self):
@@ -331,7 +378,7 @@ class Package(CleverDict):
     def get_default_keywords(self):
         default = f"{self.name}, "
         default += f"{self.author}, "
-        return default + f"{self.github_username}, "
+        return default + f"{self.Github_username}, "
 
     def get_default_requirements(self):
         return "cleverdict, "
@@ -359,8 +406,6 @@ class Package(CleverDict):
                     default = getattr(self, func)()
                 except AttributeError:
                     pass
-            if key == "version" and self.get("version"):
-                default = self.next_version
             new = sg.popup_get_text(prompt, default_text=default, **sg_kwargs)
             if new is None:
                 break
@@ -460,7 +505,7 @@ class Package(CleverDict):
             for old, new in replacements.items():
                 self.license_text = self.license_text.replace(old, new)
 
-    def check_account_credentials(self, filter=None):
+    def register_accounts(self, filter=None):
         """
         Prompts for TestPyPI/PyPI account names for twine to use.
 
@@ -477,28 +522,22 @@ class Package(CleverDict):
 
         """
         url = r"https://pypi.org/account/register/"
-        accounts = {
-            "github_": ["Github", "https://github.com/join"],
-            "pypi_": ["PyPI", url],
-            "pypi_test_": ["Test PyPI", url.replace("pypi", "test.pypi")],
-        }
+        accounts = {"Github": "https://github.com/join",
+                    "PyPI": url,
+                    "Test PyPI": url.replace("pypi", "test.pypi"),}
         if filter:
             accounts = {k:v for k,v in accounts.items() if k == filter}
-        for account, (repo, url) in accounts.items():
+        for account, url in accounts.items():
             if not self.get(account + "username"):
                 response = sg.popup_yes_no(
-                    f"Do you need to register for an account on {repo}?", **sg_kwargs)
+                    f"Do you need to register for an account on {account}?", **sg_kwargs)
                 if response is None:
                     return
                 if response == "Yes":
                     print(
-                        f'\n⚠ Please create a {account.title().replace("_", " ")}account, '
+                        f'\n ⚠  Please create a {account} account, '
                         f'then return to easyPyPI to continue the process...')
                     webbrowser.open(url)
-                self.get_username(account)
-            if not self.get(account + "password"):
-                self.get_password(account)
-        self.url = self.get_default_url()  # Uses self.github_username
 
     def copy_other_files(self):
         """
@@ -613,7 +652,7 @@ class Package(CleverDict):
                 f'-p {keyring.get_password(account, username)}"'
         ):
             # A return value of 1 (True) indicates an error
-            print("\n⚠ Problem uploading with Twine; probably either:")
+            print("\n ⚠  Problem uploading with Twine; probably either:")
             print("   - An authentication issue.  Check your username and password?")
             print("   - Using an existing version number.  Try a new version number?")
         else:
@@ -633,68 +672,9 @@ class Package(CleverDict):
                 ):
                     # A return value of 1 indicates an error, 0 indicates success
                     print(
-                        f"\nⓘ You can view your package's details using 'pip show {self.name}':\n"
+                        f"\n ⓘ  You can view your package's details using 'pip show {self.name}':\n"
                     )
                     os.system(f'cmd /c "pip show {self.name}"')
-
-    def get_username(self, account):
-        """
-        Loads username for a given account from `keyring` or prompts for a
-        value if (account, None) fails e.g. on iOS.
-
-        Parameters:
-        account -> "Github", "PyPI" or "Test_PyPI"
-
-        Sets:
-        .{account}_username
-
-        Returns:
-        True if successful
-        False if "cancel", "", or "X".
-        """
-        if not self.get(f"{account}_username"):
-            try:
-                username = keyring.get_credential(account, None).username
-            except AttributeError:
-                username = sg.popup_get_text(
-                        f'Please enter your {account.replace("_", " ")} username (not saved to file):',
-                        default_text=self.get("Github_username"),
-                        **sg_kwargs,
-                    )
-            if not username:
-                return False
-            setattr(self, f"{account}_username", username)
-            return True
-
-    def check_password(self, account):
-        """
-        Checks that a password exists for a given account using `keyring` or
-        prompts for a value if not.
-
-        Parameters:
-        account -> "Github", "PyPI" or "Test_PyPI"
-
-        Sets:
-        keyring credentials
-
-        Returns:
-        True if successful
-        False if "cancel", "", or "X".
-        """
-        if not self.get(f"{account}_password"):
-            pw = keyring.get_password(account, getattr(self, account+"_username"))
-            if not pw:
-                pw = sg.popup_get_text(
-                    f'Please enter your {account.replace("_", " ")} password (not saved to file):',
-                    password_char="*",
-                    **sg_kwargs,
-                )
-            if not pw:
-                return False
-            setattr(self, f"{account}_password", pw)
-            keyring.set_password(account, getattr(self, account+"_username"), pw)
-            return True
-
 
     def create_github_repository(self):
         """ Creates an empty repository on Github """
@@ -703,8 +683,12 @@ class Package(CleverDict):
             **sg_kwargs, )
         if choice != "Yes":
             return
-        if not (self.get("github_password") and self.get("github_username")):
-            self.check_account_credentials()
+        account = "Github"
+        if not self.get_username(account):
+            return
+        username = getattr(self, f"{account}_username")
+        if not self.check_password(account):
+            return
         browser = mechanicalsoup.StatefulBrowser(
             soup_config={'features': 'lxml'},
             raise_on_404=True,
@@ -712,8 +696,8 @@ class Package(CleverDict):
         )
         browser.open("https://github.com/login")
         browser.select_form('#login form')
-        browser["login"] = self.github_username
-        browser["password"] = self.github_password
+        browser["login"] = self.Github_username
+        browser["password"] = self.Github_password
         resp = browser.submit_selected()
         browser.open("https://github.com/new")
         browser.select_form('form[action="/repositories"]')
@@ -726,16 +710,19 @@ class Package(CleverDict):
 
     def upload_to_github(self):
         """ Uploads package to Github using Git"""
+        account = "Github"
+        if not self.get_username(account):
+            return
         commands = f"""
         git init
         git add *.*
         git commit -m "Committing version {self.version}"
         git branch -M main
-        git remote add origin https://github.com/{self.github_username}/{self.name}.git
+        git remote add origin https://github.com/{self.Github_username}/{self.name}.git
         git push -u origin main
         """
         choice = sg.popup_yes_no(
-            f'Do you want to upload (Push) your package to Github?\n\n⚠ CAUTION - '
+            f'Do you want to upload (Push) your package to Github?\n\n ⚠   CAUTION - '
             f'Only recommended when creating your repository for the first time!  '
             f'This automation is will run the following commands:\n\n{commands}',
             **sg_kwargs, )
@@ -745,7 +732,7 @@ class Package(CleverDict):
         for command in commands.splitlines()[1:]:  # Ignore first blank line
             if not os.system(f"cmd /c {command}"):
                 # A return value of 1 indicates an error, 0 indicates success
-                print(f"\nⓘ Your package is now online at:\n  {self.url}':\n")
+                print(f"\n ⓘ  Your package is now online at:\n  {self.url}':\n")
 
     def __str__(self):
         output = self.info(as_str=True)
@@ -799,3 +786,9 @@ class Package(CleverDict):
             return [choices[k] for k, v in checked.items() if v]
         if event is None:
             return
+
+#
+# Parent folder generates from name not memory
+# Parent folder doesn't end with package name
+# Version number 0.1 for new packages
+# Github push prompt only at creation
