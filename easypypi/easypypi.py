@@ -383,7 +383,71 @@ class Package(CleverDict):
     def get_default_requirements(self):
         return "cleverdict, "
 
+
     def get_metadata(self):
+        """
+        Check config file for previous values.  If no value is set, prompts for
+        a value and updates the relevant Package attribute.
+        """
+
+        prompts = {
+        "name": "Package Name (all lowercase, underscores if needed)",
+        "version": "Latest Version number",
+        "github_id": "Your Github (or other repository) ID",
+        "url": "Link to the Package Repository",
+        "description": "Description (with escape characters for \\ \" ' etc.)",
+        "author": "Full Name of the Author",
+        "email": "E-mail Address for the Author",
+        "keywords": "Keywords (separated by a comma)",
+        "requirements": "Any packages/modules that absolutely need to be installed",
+        }
+
+        self.version = self.get_default_version()
+        self.github_id = self.get_username("Github")
+        self.url = self.get_default_url()
+        self.description = ""
+        self.author = self.get_default_author()
+        self.email = self.get_default_email()
+        self.keywords = self.get_default_keywords()
+        self.requirements = self.get_default_requirements()
+
+        layout = []
+        for key, prompt in prompts.items():
+            layout += [[sg.Text(prompt, size=(50, 0)), sg.Input(getattr(self,key), key=key, size=(40, 0))]]
+        choices = {}
+        selected_choices = {}
+        for group in "Development Status|Intended Audience|Operating System|Programming Language :: |Topic".split("|"):
+            choices[group] = [option for option in "Option 1|Option 2|Option 3|Option 4|Option 5|Option 6|Option 7|Option 8".split("|")]
+            selected_choices[group] = []
+            if group == "Programming Language :: ":
+                selected_choices[group] = "Option 3|Option 4|Option 5|Option 7|Option 8".split("|")
+            layout += [
+                [
+                    sg.Text(group, size=(50, 1)),
+                    sg.Text(
+                        ", ".join(selected_choices[group]),
+                        key=("group", group),
+                        enable_events=True,
+                        size=(40, 0),
+                        background_color=sg.theme_input_background_color(),
+                        text_color=sg.theme_text_color(),
+                    ),
+                ]
+            ]
+
+        window = sg.Window("easypypi", layout)
+        while True:
+            event, values = window.read()
+            if event is None:
+                break
+
+            print(event)
+            if isinstance(event, tuple):
+                group = event[1]
+                prompt_with_checkboxes(group, choices=choices[group], selected_choices=selected_choices[group])
+                window[event].update(value=", ".join(selected_choices[group]))
+
+    def _get_metadata(self):
         """
         Check config file for previous values.  If no value is set, prompts for
         a value and updates the relevant Package attribute.
@@ -753,7 +817,7 @@ class Package(CleverDict):
             return f"{self.version}-new"
 
     @staticmethod
-    def prompt_with_checkboxes(group, choices):
+    def _prompt_with_checkboxes(group, choices):
         """
         Creates a scrollable checkbox popup using PySimpleGui
         Returns a set of selected choices, or and empty set
@@ -787,8 +851,26 @@ class Package(CleverDict):
         if event is None:
             return
 
-#
+def prompt_with_checkboxes(group, choices, selected_choices):
+    """
+    Creates a scrollable checkbox popup using PySimpleGui
+    Returns a set of selected choices, or and empty set
+    """
+    prompt = [sg.Text(text=f"Please select any relevant classifiers in the {group.title()} group:")]
+    layout = [[sg.Checkbox(text=choice, key=choice, default=choice in selected_choices)] for choice in choices]
+    event, values = sg.Window(
+        "easyPyPI", [prompt, [sg.Column(layout,
+                        scrollable=True,
+                        vertical_scroll_only=True,
+                        size=(600, 300))], [sg.Button("Accept"), sg.Button("Cancel")]], resizable=True, no_titlebar=True,
+    ).read(close=True)
+
+    if event == "Accept":
+        selected_choices.clear()
+        selected_choices.extend(k for k in choices if values[k])
+        return True
+    if event is None or event == "Cancel":
+        return False
+
 # Parent folder generates from name not memory
-# Parent folder doesn't end with package name
-# Version number 0.1 for new packages
 # Github push prompt only at creation
