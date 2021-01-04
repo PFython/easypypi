@@ -5,6 +5,7 @@ from cleverdict import CleverDict
 
 import requests
 
+
 def fetch_license_data():
     """
     Uses Github  API to fetch basic information about popular license choices
@@ -20,9 +21,9 @@ def fetch_license_data():
         "Unlicense": "https://api.github.com/licenses/unlicense",
         "Boost": "https://api.github.com/licenses/bsl-1.0",
     }
-    licenses = [requests.get(api_link).json()
-                for api_link in api_links.values()]
+    licenses = [requests.get(api_link).json() for api_link in api_links.values()]
     return licenses
+
 
 def load_licenses_json():
     """
@@ -33,21 +34,24 @@ def load_licenses_json():
     """
     license_dict_path = Path(LICENSES_FILENAME)
     if license_dict_path.is_file():
-        with license_dict_path.open('r') as file:
+        with license_dict_path.open("r") as file:
             license_dict = json.load(file)
         return [CleverDict(x) for x in license_dict]
     else:
         return []
 
-LICENSES_FILENAME = str(Path(__file__).parent / 'licenses.json')
-LICENSE_NAMES = {'MIT': 'MIT License',
-                 'GPL-3.0': 'GNU General Public License v3 (GPLv3)',
-                 'LGPL-3.0': 'GNU Lesser General Public License v3 (LGPLv3)',
-                 'MPL-2.0': 'Mozilla Public License 2.0 (MPL 2.0)',
-                 'AGPL-3.0': 'GNU Affero General Public License v3',
-                 'Apache-2.0': 'Apache Software License',
-                 'Unlicense': 'The Unlicense (Unlicense)',
-                 'BSL-1.0': 'Boost Software License 1.0 (BSL-1.0)',}
+
+LICENSES_FILENAME = str(Path(__file__).parent / "licenses.json")
+LICENSE_NAMES = {
+    "MIT": "MIT License",
+    "GPL-3.0": "GNU General Public License v3 (GPLv3)",
+    "LGPL-3.0": "GNU Lesser General Public License v3 (LGPLv3)",
+    "MPL-2.0": "Mozilla Public License 2.0 (MPL 2.0)",
+    "AGPL-3.0": "GNU Affero General Public License v3",
+    "Apache-2.0": "Apache Software License",
+    "Unlicense": "The Unlicense (Unlicense)",
+    "BSL-1.0": "Boost Software License 1.0 (BSL-1.0)",
+}
 # Key: spdx_id from JSON
 # Value: PyPI license name under 'License :: OSI Approved ::'
 LICENSES = load_licenses_json()
@@ -64,13 +68,13 @@ if __name__ == "__main__":
     valid_json = True
 
     try:
-        json.load(file.open('r'))
+        json.load(file.open("r"))
     except JSONDecodeError:
         valid_json = False
 
     if file.exists() and valid_json:
         print(f"\nⓘ Existing file preserved:\n  {file}")
     else:
-        with file.open('w') as file:
+        with file.open("w") as file:
             json.dump(fetch_license_data(), file)
         print(f"\n✓ Created new file:\n  {file}")

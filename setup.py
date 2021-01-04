@@ -8,14 +8,14 @@ from setuptools import setup
 HERE = Path(__file__).parent
 NAME = "easypypi"
 GITHUB_USERNAME = "Pfython"
-VERSION = "1.18"
+VERSION = "1.19"
 DESCRIPTION = "easyPyPI is THE easiest and quickest way to publish your Python creations on the Python Package Index (PyPI) so other people can just `pip install your_script`."
 LICENSE = "MIT License"
 AUTHOR = "Peter Fison"
 EMAIL = "peter@southwestlondon.tv"
 URL = "https://github.com/Pfython/easypypi"
 KEYWORDS = "easypypi, Peter Fison, Pfython, pip, package, publish, share, build, deploy, Python"
-CLASSIFIERS = "Development Status :: 4 - Beta, Intended Audience :: Developers, Operating System :: OS Independent, Programming Language :: Python :: 3.6, Programming Language :: Python :: 3.7, Programming Language :: Python :: 3.8, Programming Language :: Python :: 3.9, Topic :: Software Development :: Build Tools, Topic :: Software Development :: Version Control :: Git, Topic :: System :: Archiving :: Packaging, Topic :: System :: Installation/Setup, Topic :: System :: Software Distribution, Topic :: Utilities"
+CLASSIFIERS = "Development Status :: 4 - Beta, Intended Audience :: Developers, Operating System :: OS Independent, Programming Language :: Python :: 3.6, Programming Language :: Python :: 3.7, Programming Language :: Python :: 3.8, Programming Language :: Python :: 3.9, Topic :: Software Development :: Build Tools, Topic :: Software Development :: Libraries :: Python Modules, Topic :: Software Development :: Libraries :: pygame, Topic :: Software Development :: Version Control :: Git, Topic :: System :: Archiving :: Packaging, Topic :: Utilities, License :: OSI Approved :: MIT License"
 REQUIREMENTS = "cleverdict, pysimplegui, click, requests, twine, keyring, mechanicalsoup"
 
 

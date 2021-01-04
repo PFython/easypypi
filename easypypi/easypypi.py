@@ -393,8 +393,8 @@ class Package(CleverDict):
         layout += [[sg.Text(" " * 200, font="calibri 6")]]
         for group, group_text in GROUP_CLASSIFIERS.items():
             choices[group] = [x for x in CLASSIFIER_LIST if x.startswith(group)]
-            selected_choices[group] = []
-            if group == "Programming Language :: Python":
+            selected_choices[group] = [x for x in self.classifiers.split(", ") if x.startswith(group)]
+            if group == "Programming Language :: Python" and not selected_choices[group]:
                 selected_choices[group] = [
                     x
                     for x in choices[group]
@@ -407,13 +407,14 @@ class Package(CleverDict):
                     for x in choices[group]
                     if any([x.endswith(y) for y in LICENSE_NAMES.values()])
                 ]
-                selected_choices[group] = ["License :: OSI Approved :: MIT License"]
+                if not selected_choices[group]:
+                    selected_choices[group] = ["License :: OSI Approved :: MIT License"]
             for group_name, default in {
                 "Operating System": "OS Independent",
                 "Development Status": "- Alpha",
                 "Intended Audience": "Developers",
             }.items():
-                if group == group_name:
+                if group == group_name and not selected_choices[group]:
                     selected_choices[group] = [
                         x for x in choices[group] if x.endswith(default)
                     ]
@@ -441,6 +442,7 @@ class Package(CleverDict):
             [sg.Text(" " * 200, font="calibri 6")],
             [
                 sg.Button("Save", tooltip="Save current values to config.json"),
+                sg.Button("Upversion", tooltip="Update Version number incrementally"),
                 sg.Button(
                     "Generate", tooltip="Create/update setup.py and tar.gz files"
                 ),
@@ -484,12 +486,11 @@ class Package(CleverDict):
                 return False
             if event == "Save":
                 self.save_user_input(values, selected_choices)
+            if event == "Upversion":
+                self.version = self.next_version
+                window["version"].update(value=self.version)
+                values["version"] = self.version
             if event == "Generate":
-                if not self.get("upversioned_already"):
-                    self.version = self.next_version
-                    window["version"].update(value=self.version)
-                    values["version"] = self.version
-                self.upversioned_already = False  # reset for next time
                 self.save_user_input(values, selected_choices)
                 print(values)
                 self.generate_files_and_folders()
@@ -617,8 +618,7 @@ class Package(CleverDict):
 
     def generate_files_and_folders(self):
         """
-        Entry point for upversioning an existing package, recreating
-        setup.py and creating a new tar.gz package ready for publishing.
+        Recreates setup.py & creates a new tar.gz package ready for publishing.
         """
         self.copy_other_files()
         choice = sg.popup_yes_no(
