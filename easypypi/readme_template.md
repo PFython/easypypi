@@ -29,4 +29,4 @@ If `{self.name}` helps you save time and focus on more important things, please 
 
 I'd also be delighted if you wanted to:
 
-<a href="https://www.buymeacoffee.com/{self.github_id}" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" width="217px" ></a>
+<a href="https://www.buymeacoffee.com/{self.Github_username}" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" width="217px" ></a>

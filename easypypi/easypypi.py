@@ -10,6 +10,7 @@ from .utils import SG_KWARGS
 from cleverdict import CleverDict
 from decimal import Decimal as decimal
 from keyring.errors import PasswordDeleteError
+from mechanicalsoup.utils import LinkNotFoundError
 from pathlib import Path
 from PySimpleGUI import ICON_BUY_ME_A_COFFEE
 import click  # used to get cross-platform folder path for config file
@@ -37,26 +38,158 @@ class Package(CleverDict):
     redirect : Send stdout and stderr to PySimpleGUI Debug Window
 
     """
-
+    sg.change_look_and_feel("DarkAmber")
     easypypi_dirpath = Path(__file__).parent
     config_filepath = Path(click.get_app_dir("easyPyPI")) / ("config.json")
 
     def __init__(self, name=None, **kwargs):
         options, kwargs = self.get_options_from_kwargs(**kwargs)
+        # ⚠ If kwargs are supplied, autosave will overwrite JSON config
         super().__init__(**kwargs)
-        # Caution! If kwargs are supplied, autosave will overwrite JSON config
-        self.start_gui(redirect=options["redirect"])
-        self.load_defaults(name, options['review'])
+        print(
+            f"\n ⓘ  easyPyPI template files are located in:\n  {self.__class__.easypypi_dirpath}",
+            **options if kwargs.get("redirect") else {},
+        )
+        print(f"\n ⓘ  Your easyPyPI config file is:\n  {self.__class__.config_filepath}")
         if options['_break'] is True:
             return
+        self.load_defaults()
         # As above... must Load before Setting any other values with autosave on
         if self.name and self.get("setup_filepath_str"):
-            if options['review'] is not False:
-                self.review()
-            self.generate()
-            self.publish()
-        # Force reset of 'review' option in JSON config:
-        self.review = True
+            self.get_user_input()
+
+    def __str__(self):
+        output = self.info(as_str=True)
+        return output.replace("CleverDict", type(self).__name__, 1)
+
+    def save(self, key=None, value=None):
+        """
+        This method is called by CleverDict whenever a value or attribute
+        changes.  Used here to update the config file automatically.
+
+        NB because values are loaded from the config file into attributes during
+        __init__, if you want to DELETE an entry from the config file e.g.
+        during debugging you'll need to delete the attribute then run .save:
+
+        del self.x
+        self.save()
+        """
+        with open(self.__class__.config_filepath, "w") as file:
+            # CleverDict.get_aliases finds attributes created after __init__:
+            fields_dict = {
+                x: self.get(x)
+                for x in self.get_aliases()
+                if "password" not in x.lower()
+            }
+            json.dump(fields_dict, file)
+        if key:
+            if "password" in key.lower():
+                location = "memory but NOT saved to file"
+            else:
+                location = self.__class__.config_filepath
+
+    def get_options_from_kwargs(self, **kwargs):
+        """ Separate actionable options from general data in kwargs."""
+        options = {}
+        for key, default_value in {"_break": False}.items():
+            if isinstance(kwargs.get(key), bool):
+                options[key] = kwargs.get(key)
+                del kwargs[key]
+            else:
+                options[key] = default_value
+        return options, kwargs
+
+    def load_defaults(self, name=None, review= True):
+        """
+        Entry point for loading default Package values as attributes.
+        Choose between last updated JSON config file, and setup.py if it exists.
+        """
+        self.create_skeleton_config_file()
+        # Important!  Defaults must be loaded from file (if possible) first:
+        self.load_defaults_from_config_file()
+        if name:
+            self.name = name
+        else:
+            self.name = sg.popup_get_text(
+                "Please enter a name for this package (all lowercase, underscores if needed):",
+                default_text=self.get("name") or "as_easy_as_pie",
+                **SG_KWARGS,
+            )
+        if review and self.name:
+            self.create_folder_structure()
+            if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
+                # setup.py exists & isn't empty, overwrite default values
+                self.load_defaults_from_setup_py()
+
+    def load_defaults_from_config_file(self):
+        """
+        Loads default metadata from last updated config file.
+        Creates .scriptlines as a copy of setup_template.py
+        """
+        with open(self.__class__.config_filepath, "r") as file:
+            values = json.load(file)
+        for key, value in values.items():
+            setattr(self, key, value)
+        setup = self.__class__.easypypi_dirpath / "setup_template.py"
+        with open(setup, "r") as file:
+            self.script_lines = file.readlines()
+
+    def load_defaults_from_setup_py(self):
+        """
+        Loads default metadata from previously created setup.py
+        Creates .scriptlines as a copy of setup.py
+        """
+        with open(self.setup_filepath, "r") as file:
+            lines = file.readlines()
+        for line in lines:
+            for field, attribute in SETUP_FIELDS.items():
+                if line.startswith(field.upper() + " = "):
+                    # Use eval in case the value isn't simply a string:
+                    setattr(self, attribute, eval(line.split(" = ")[-1]))
+        with open(self.setup_filepath, "r") as file:
+            self.script_lines = file.readlines()
+
+    def create_skeleton_config_file(self):
+        """
+        Uses click to find & create a platform-appropriate easyPyPI folder, then
+        creates a skeleton json file there to store persistent data (if one
+        doesn't already exist or if the current one is empty).
+        """
+        if (
+                self.__class__.config_filepath.is_file()
+                and self.__class__.config_filepath.stat().st_size
+        ):
+            return
+        try:
+            os.makedirs(self.__class__.config_filepath.parent)
+            print(f"\n ⓘ  Folder created:\n {self.__class__.config_filepath.parent}")
+        except FileExistsError:
+            pass
+        with open(self.__class__.config_filepath, "w") as file:
+            json.dump({"version": "0.1"}, file)  # Create skeleton .json file
+        print(f"\n ⚠  Skeleton config file created:\n  {self.__class__.config_filepath}")
+
+    def create_folder_structure(self):
+        """
+        Creates skeleton folder structure for a package and starter files.
+        Creates .setup_filepath_str.
+        """
+        parent_path_str = ""
+        while not parent_path_str:
+            parent_path_str = sg.popup_get_folder(
+                "Please select the parent folder for your package i.e. WITHOUT the package name",
+                default_path=self.get_default_filepath(),
+                **SG_KWARGS,
+            )
+            if parent_path_str is None:
+                return
+        setup_dirpath = Path(parent_path_str) / self.name
+        self.setup_filepath_str = str(setup_dirpath / "setup.py")
+        try:
+            os.makedirs(setup_dirpath / self.name)
+            print(f"\n✓ Created package folder:\n  {setup_dirpath}")
+        except FileExistsError:
+            print(f"\n ⓘ  Package folder already exists:\n  {setup_dirpath}")
 
     def get_username(self, account):
         """
@@ -148,190 +281,6 @@ class Package(CleverDict):
             except PasswordDeleteError:
                 print("\n ⓘ  keyring Credentials couldn't be deleted. Perhaps they already were?")
 
-    def get_options_from_kwargs(self, **kwargs):
-        """ Separate actionable options from general data in kwargs."""
-        options = {}
-        for key, default_value in {"review": True, "_break": False, "redirect": False}.items():
-            if isinstance(kwargs.get(key), bool):
-                options[key] = kwargs.get(key)
-                del kwargs[key]
-            else:
-                options[key] = default_value
-        return options, kwargs
-
-    def start_gui(self, **kwargs):
-        """
-        Toggles between normal output and routing stdout/stderr to PySimpleGUI
-        """
-        if kwargs.get("redirect"):
-            global print
-            print = sg.Print
-        sg.change_look_and_feel("DarkAmber")
-        # Redirect stdout and stderr to Debug Window:
-        sg.set_options(
-            message_box_line_width=80,
-            debug_win_size=(100, 30),
-        )
-        options = {"do_not_reroute_stdout": False, "keep_on_top": True}
-        print(
-            f"\n ⓘ  easyPyPI template files are located in:\n  {self.__class__.easypypi_dirpath}",
-            **options if kwargs.get("redirect") else {},
-        )
-        print(f"\n ⓘ  Your easyPyPI config file is:\n  {self.__class__.config_filepath}")
-
-    def load_defaults(self, name=None, review= True):
-        """
-        Entry point for loading default Package values as attributes.
-        Choose between last updated JSON config file, and setup.py if it exists.
-
-        Exits early if review == False
-        """
-        self.create_skeleton_config_file()
-        # Important!  Defaults must be loaded from file (if possible) first:
-        self.load_defaults_from_config_file()
-        if name:
-            self.name = name
-        else:
-            self.name = sg.popup_get_text(
-                "Please enter a name for this package (all lowercase, underscores if needed):",
-                default_text=self.get("name") or "as_easy_as_pie",
-                **SG_KWARGS,
-            )
-        if review and self.name:
-            self.create_folder_structure()
-            if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
-                # setup.py exists & isn't empty, overwrite default values
-                self.load_defaults_from_setup_py()
-
-    def create_skeleton_config_file(self):
-        """
-        Uses click to find & create a platform-appropriate easyPyPI folder, then
-        creates a skeleton json file there to store persistent data (if one
-        doesn't already exist or if the current one is empty).
-        """
-        if (
-                self.__class__.config_filepath.is_file()
-                and self.__class__.config_filepath.stat().st_size
-        ):
-            return
-        try:
-            os.makedirs(self.__class__.config_filepath.parent)
-            print(f"\n ⓘ  Folder created:\n {self.__class__.config_filepath.parent}")
-        except FileExistsError:
-            pass
-        with open(self.__class__.config_filepath, "w") as file:
-            json.dump({"version": "0.1"}, file)  # Create skeleton .json file
-        print(f"\n ⚠  Skeleton config file created:\n  {self.__class__.config_filepath}")
-
-    def load_defaults_from_config_file(self):
-        """
-        Loads default metadata from last updated config file.
-        Creates .scriptlines as a copy of setup_template.py
-        """
-        with open(self.__class__.config_filepath, "r") as file:
-            values = json.load(file)
-        for key, value in values.items():
-            setattr(self, key, value)
-        setup = self.__class__.easypypi_dirpath / "setup_template.py"
-        with open(setup, "r") as file:
-            self.script_lines = file.readlines()
-
-    def create_folder_structure(self):
-        """
-        Creates skeleton folder structure for a package and starter files.
-        Creates .setup_filepath_str.
-        """
-        parent_path_str = ""
-        while not parent_path_str:
-            parent_path_str = sg.popup_get_folder(
-                "Please select the parent folder for your package i.e. WITHOUT the package name",
-                default_path=self.get_default_filepath(),
-                **SG_KWARGS,
-            )
-            if parent_path_str is None:
-                return
-        setup_dirpath = Path(parent_path_str) / self.name
-        self.setup_filepath_str = str(setup_dirpath / "setup.py")
-        try:
-            os.makedirs(setup_dirpath / self.name)
-            print(f"\n✓ Created package folder:\n  {setup_dirpath}")
-        except FileExistsError:
-            print(f"\n ⓘ  Package folder already exists:\n  {setup_dirpath}")
-
-    def load_defaults_from_setup_py(self):
-        """
-        Loads default metadata from previously created setup.py
-        Creates .scriptlines as a copy of setup.py
-        """
-        with open(self.setup_filepath, "r") as file:
-            lines = file.readlines()
-        for line in lines:
-            for field in SETUP_FIELDS:
-                if line.startswith(field.upper() + " = "):
-                    # Use eval in case the value isn't simply a string:
-                    setattr(self, field, eval(line.split(" = ")[-1]))
-        with open(self.setup_filepath, "r") as file:
-            self.script_lines = file.readlines()
-
-    def review(self):
-        """
-        Entry point for creating a package for the first time, or reviewing
-        basic metadata for a previously created package.
-        """
-        self.get_user_input()
-
-    def generate(self):
-        """
-        Entry point for upversioning an existing package, recreating
-        setup.py and creating a new tar.gz package ready for publishing.
-        """
-        self.upversioned_already = True
-        self.copy_other_files()
-        choice = sg.popup_yes_no(
-            "Do you want to generate new package files "
-            "(setup.py, README, LICENSE, tar.gz, etc) from the current metadata?\n",
-            **SG_KWARGS,
-        )
-        if choice != "Yes":
-            return
-        if not self.get("upversioned_already"):
-            self.version = self.next_version
-        self.upversioned_already = False  # reset for next time
-        self.create_essential_files()
-        self.run_setup_py()
-
-    def publish(self):
-        """
-        Entry point for republishing an existing package to Test PyPI or PyPI.
-        """
-        self.upload_with_twine()
-
-    def save(self, key=None, value=None):
-        """
-        This method is called by CleverDict whenever a value or attribute
-        changes.  Used here to update the config file automatically.
-
-        NB because values are loaded from the config file into attributes during
-        __init__, if you want to DELETE an entry from the config file e.g.
-        during debugging you'll need to delete the attribute then run .save:
-
-        del self.x
-        self.save()
-        """
-        with open(self.__class__.config_filepath, "w") as file:
-            # CleverDict.get_aliases finds attributes created after __init__:
-            fields_dict = {
-                x: self.get(x)
-                for x in self.get_aliases()
-                if "password" not in x.lower()
-            }
-            json.dump(fields_dict, file)
-        if key:
-            if "password" in key.lower():
-                location = "memory but NOT saved to file"
-            else:
-                location = self.__class__.config_filepath
-
     @property
     def setup_filepath(self):
         """
@@ -342,6 +291,20 @@ class Package(CleverDict):
         is used for deciding what attributes get auto-saved to the config file.
         """
         return Path(self.setup_filepath_str)
+
+    @property
+    def next_version(self):
+        """ Suggests next package version number based on simple schemas """
+        decimal_version = decimal(str(self.version))
+        try:
+            _, digits, exponent = decimal_version.as_tuple()
+            if exponent == 0:  # i.e. 0 decimal places:
+                increment = "0.1"
+            else:
+                increment = "0.01"
+            return str(decimal_version + decimal(increment))
+        except dec.InvalidOperation:
+            return f"{self.version}-new"
 
     def get_default_filepath(self):
         path = Path(self.get("setup_filepath_str") or Path().cwd())
@@ -390,14 +353,14 @@ class Package(CleverDict):
             "keywords": "Keywords (separated by a comma):",
             "requirements": "Any additional packages/modules required:",
         }
-        self.version = self.get_default_version()
+        self.version = self.get('version') or self.get_default_version()
         self.get_username("Github")  # .Github_username created in place
         self.url = self.get_default_url()
-        self.description = ""
-        self.author = self.get_default_author()
-        self.email = self.get_default_email()
-        self.keywords = self.get_default_keywords()
-        self.requirements = self.get_default_requirements()
+        self.description = self.get('description')
+        self.author = self.get('author') or self.get_default_author()
+        self.email = self.get('email') or self.get_default_email()
+        self.keywords = self.get('keywords') or self.get_default_keywords()
+        self.requirements = self.get('requirements') or self.get_default_requirements()
         layout = [[sg.Text(" "*200, font="calibri 6")]]
         for key, prompt in prompts.items():
             default = self.get(key)
@@ -470,7 +433,7 @@ class Package(CleverDict):
             tooltip="Show your appreciation for all the time you're saving with easyPyPI"),
             sg.Button("Accounts",
             tooltip="Create an account on PyPI, TestPyPI and/or Github"),
-            sg.Button("Repository",
+            sg.Button("Github",
             tooltip="Create an initial repository on Github"),
             sg.Button("Config",
             tooltip="Open/Edit config.json file"),
@@ -494,13 +457,19 @@ class Package(CleverDict):
             if event == "Save":
                 self.save_user_input(values, selected_choices)
             if event == "Generate":
+                if not self.get("upversioned_already"):
+                    self.version = self.next_version
+                    window['version'].update(value=self.version)
+                    values['version'] = self.version
+                self.upversioned_already = False  # reset for next time
                 self.save_user_input(values, selected_choices)
-                self.generate()
+                print(values)
+                self.generate_files_and_folders()
             if event == "Publish":
-                self.publish()
+                self.upload_with_twine()
             if event == "Accounts":
                 self.register_accounts()
-            if event == "Repository":
+            if event == "Github":
                 self.create_github_repository()
             if event == "Config":
                 webbrowser.open(self.config_filepath)
@@ -529,7 +498,7 @@ class Package(CleverDict):
                 self.license_name_github = [x.name for x in LICENSES if x.spdx_id == spdx_id][0]
                 break
         self.create_license()
-        print(self)
+        self.update_script_lines()
 
     def create_license(self):
         """
@@ -563,6 +532,14 @@ class Package(CleverDict):
         if replacements:
             for old, new in replacements.items():
                 self.license_text = self.license_text.replace(old, new)
+
+    def update_script_lines(self):
+        for keyword, attribute_name in SETUP_FIELDS.items():
+            old_line_starts = keyword.upper() + " = "
+            new_value = getattr(self, attribute_name)
+            self.script_lines = update_line(
+                self.script_lines, old_line_starts, new_value
+            )
 
     def register_accounts(self, filter=None):
         """
@@ -598,6 +575,24 @@ class Package(CleverDict):
                         f'then return to easyPyPI to continue the process...')
                     webbrowser.open(url)
 
+
+    def generate_files_and_folders(self):
+        """
+        Entry point for upversioning an existing package, recreating
+        setup.py and creating a new tar.gz package ready for publishing.
+        """
+        self.copy_other_files()
+        choice = sg.popup_yes_no(
+            "Do you want to generate new package files "
+            "(setup.py, README, LICENSE, tar.gz, etc) from the current metadata?\n",
+            **SG_KWARGS,
+        )
+        if choice != "Yes":
+            return
+        self.create_essential_files()
+        self.run_setup_py()
+        print("\n ✓  Files and folders generated ready for publishing.")
+
     def copy_other_files(self):
         """
         Prompts for additional files to copy over into the newly created folder:
@@ -624,17 +619,6 @@ class Package(CleverDict):
                 shutil.copy(file, new_file)
                 print(f"\n✓ Copied {file.name} to:\n {new_file.parent}")
 
-    def update_script_lines(self):
-        for keyword in SETUP_FIELDS:
-            old_line_starts = keyword.upper() + " = "
-            if keyword == "license":
-                new_value = self.license
-            else:
-                new_value = getattr(self, keyword)
-            self.script_lines = update_line(
-                self.script_lines, old_line_starts, new_value
-            )
-
     def create_essential_files(self):
         """
         Creates essential files for the new package:
@@ -645,23 +629,16 @@ class Package(CleverDict):
         /package_name/package_name.py
         /package_name/test_PACKAGE_NAME.py
         """
+        sfp = self.setup_filepath.parent
         # setup.py and LICENSE can be be overwritten as they're most likely to
         # be changed by user after publishing, and no code changes will be lost:
-        self.update_script_lines()
-        sfp = self.setup_filepath.parent
-
-        # Create LICENSE:
         create_file(sfp / "LICENSE", self.license_text, overwrite=True)
-
-        # Create setup.py:
         create_file(self.setup_filepath, self.script_lines, overwrite=True)
-
         # Other files are just bare-bones initially, imported from templates:
-        templates = {"readme_template.md": sfp / "README.md",
-                     "init_template.py": sfp / self.name / "__init__.py",
-                     "script_template.py": sfp / self.name / (self.name + ".py"),
-                     "test_template.py": sfp / self.name / ("test_" + self.name + ".py"), }
-
+        templates = {"readme_template.md": sfp/"README.md",
+                     "init_template.py": sfp/self.name/"__init__.py",
+                     "script_template.py": sfp/self.name/(self.name + ".py"),
+                     "test_template.py": sfp/self.name/("test_" + self.name + ".py"), }
         # Read in, make replacements, create in new folder structure
         for template_filepath, destination_path in templates.items():
             template_filepath = self.easypypi_dirpath / template_filepath
@@ -751,7 +728,7 @@ class Package(CleverDict):
         choice = sg.popup_yes_no(
             f'Do you want to upload (Push) your package to Github?\n\n ⚠   CAUTION - '
             f'Only recommended when creating your repository for the first time!  '
-            f'This automation is will run the following commands:\n\n{commands}',
+            f'This automation will run the following commands:\n\n{commands}',
             **SG_KWARGS, )
         if choice != "Yes":
             return
@@ -784,7 +761,13 @@ class Package(CleverDict):
         browser["password"] = self.Github_password
         resp = browser.submit_selected()
         browser.open("https://github.com/new")
-        browser.select_form('form[action="/repositories"]')
+        try:
+            browser.select_form('form[action="/repositories"]')
+        except LinkNotFoundError:
+            print(f"\n ⚠  Unable to log in to Github with username {self.Github_username}.  Please resubmit Github password, double check your username, and try again...")
+            self.set_password("Github")
+            browser.close()
+            return
         browser["repository[name]"] = self.name
         browser["repository[description]"] = self.description
         browser["repository[visibility]"] = "private"
@@ -792,24 +775,6 @@ class Package(CleverDict):
         self.publish_to_github()
         webbrowser.open(self.url)
         #browser.launch_browser()
-
-    @property
-    def next_version(self):
-        """ Suggests next package version number based on simple schemas """
-        decimal_version = decimal(str(self.version))
-        try:
-            _, digits, exponent = decimal_version.as_tuple()
-            if exponent == 0:  # i.e. 0 decimal places:
-                increment = "0.1"
-            else:
-                increment = "0.01"
-            return str(decimal_version + decimal(increment))
-        except dec.InvalidOperation:
-            return f"{self.version}-new"
-
-    def __str__(self):
-        output = self.info(as_str=True)
-        return output.replace("CleverDict", type(self).__name__, 1)
 
 def prompt_with_choices(group, choices, selected_choices):
     """

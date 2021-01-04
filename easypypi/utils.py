@@ -8,20 +8,21 @@ from pathlib import Path
 
 from PySimpleGUI.PySimpleGUI import ICON_BUY_ME_A_COFFEE
 
-# Variable names used within setup_template.py to create easyPyPI setup.py files
-SETUP_FIELDS = [
-    'author',
-    'classifiers',
-    'description',
-    'email',
-    'github_username',
-    'keywords',
-    'license',
-    'name',
-    'requirements',
-    'url',
-    'version',
-]
+# Mapping of variable names used within setup_template.py and final setup.py,
+# and Package attribute names.
+SETUP_FIELDS = {
+    'AUTHOR': 'author',
+    'CLASSIFIERS': 'classifiers',
+    'DESCRIPTION': 'description',
+    'EMAIL': 'email',
+    'GITHUB_USERNAME': 'Github_username',
+    'KEYWORDS': 'keywords',
+    'LICENSE': 'license_name_github',
+    'NAME': 'name',
+    'REQUIREMENTS': 'requirements',
+    'URL': 'url',
+    'VERSION': 'version',
+}
 
 # Main groups of Classifiers for setup.py;  Values are input prompts
 GROUP_CLASSIFIERS = {
@@ -39,6 +40,7 @@ REPLACEMENTS = [
     '{self.description}',
     '{self.email}',
     '{self.name}',
+    '{self.Github_username}'
     '{datetime.datetime.now()}',
 ]
 
