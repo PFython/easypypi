@@ -33,24 +33,34 @@ Enjoy!
     >>> from easypypi import Package
     >>> package = Package()
 
+    # or:
+    >>> package = Package("your_package_name")
+
 Then just follow the prompts to provide the information required to describe your package on **PyPI**.  No knowledge of `setuptools`, `twine`, or how to write a `setup.py` script required.
 
 ![](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
 
+Once you've gone through the creation process fully (or even partially), click the `Save` button to store your responses in a JSON config file located in the recommended settings folder for your Operating System.  When you start again `easyPyPI` will helpfully remember your previous answers.
+
+![](https://github.com/PFython/easypypi/blob/main/screenshot.png?raw=true)
+
+When you've added all the information you want to include with your package, click the `Generate` button to create a basic folder structure and populate it with all the standard files you'll need such as a README and LICENSE.
+
+The next time you run `easyPyPI` with an existing package name and folder location, it will automatically import the contents of the latest `setup.py` file it finds(in preference to `config.json`), so if you want you can make updates directly to `setup.py` but be careful to keep the same basic format so `easyPyPI` has a chance of finding what it needs!
+
 # 2. UPDATING YOUR PACKAGE
 
-Once you've gone through the creation process fully (or even partially) you can start again by simply creating a new object with the same name, and `easyPyPI` will import your previous answers based on the latest `setup.py` you created.
+For more precise control you can close the GUI after creating your `package` object, and manually get and set all of the data encapsulated in it.  Thanks to the magic of [`cleverdict`](https://github.com/pfython/cleverdict) you can do this *either* using `object.attribute` or `dictionary['key']` notation, whichever you prefer:
 
-For more precise control you can manually get and set all of the data encapsulated in your `package` object.  Thanks to the magic of [`cleverdict`](https://github.com/pfython/cleverdict) you can do this *either* using `object.attribute` or `dictionary['key']` notation, whichever you prefer:
+    >>> package.name
+    'as_easy_as_pie'
 
     >>> package['email'] = "new@name.com"
+
     >>> package['license_dict'].name
     'MIT License'
-    >>> package.version = "2.0"
-    >>> package.next_version
-    '2.1'
 
-Your last set of answers (except passwords) are stored in a JSON config file will be kept up to date automatically when you change values.  The location defaults to the recommended setting folder for your Operating System.
+    >>> package.version = "2.0"
 
 # 3. OTHER FEATURES
 
@@ -60,7 +70,7 @@ Automatically generate the next version number for your `Package` (more schemas 
     >>> package.next_version
     '1.11'
 
-To find where easyPyPI and its default templates were installed:
+To find where `easyPyPI` and its default templates were installed:
 
     >>> package.easypypi_dirpath
 
@@ -103,21 +113,20 @@ To see what else you can play with using your `Package` object:
 
 If you want to contribute code, please follow this simple process:
 
-- Fork this repository. Also STAR this repository for bonus karma!
-- Create a new Branch for the issue or feature you're working on.
+- **Fork** this repository. Also STAR this repository for bonus karma!
+- Create a new **Branch** for the issue or feature you're working on.
 - Create a separate `test_xyz.py` script to accompany any changes you make, and document your tests (and any new code) clearly enough that they'll tell us everything we need to know about your rationale and implementation approach.
-- When you're ready and the new code passes all your tests, create a Pull Request from your Branch back to the Main Branch of this repository.
+- When you're ready and the new code passes all your tests, create a **Pull Request** from your **Branch** back to the **Main Branch** of this repository.
 
-If you'd be kind enough to follow that approach we think it'll help speed things on their way and cause less brain-ache all round. Thank you, and I can't wait to hear your thoughts!
+If you'd be kind enough to follow that approach it'll help speed things on their way and cause less brain-ache all round. Thank you, and we can't wait to hear people's ideas!
 
-You can also get in contact on [Twitter](https://twitter.com/appawsom) and we're currently dabbling with the [CodeStream](https://marketplace.visualstudio.com/items?itemName=CodeStream.codestream) extension for VS Code which seems to have some helpful collaborative features, so perhaps we can connect with that too?
+You can also get in contact on [Twitter](https://twitter.com/appawsom), and we're currently dabbling with the [CodeStream](https://marketplace.visualstudio.com/items?itemName=CodeStream.codestream) extension for VS Code which seems to have some helpful collaborative features, so perhaps we can connect with that too?
 
 # 5. PAYING IT FORWARD
 
-If `easyPyPI` helps you save time and focus on more important things, please feel free to to show your appreciation by starring the repository on Github!
-
-I'd also be delighted if anyone wants to:
+If `easyPyPI` helps you save time and focus on more important things, please show your appreciation by at least starring this repository on Github or even better:
 
 <a href="https://www.buymeacoffee.com/pfython" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" width="217px" ></a>
 
+Yummy - thank you!
 

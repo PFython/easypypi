@@ -48,6 +48,15 @@ class Package(CleverDict):
         options, kwargs = self.get_options_from_kwargs(**kwargs)
         # ⚠ If kwargs are supplied, autosave will overwrite JSON config
         super().__init__(**kwargs)
+        if name:
+            self.name = name
+        else:
+            self.name = sg.popup_get_text(
+                "Please enter a name for this package (all lowercase, underscores if needed):",
+                default_text=self.get("name") or "as_easy_as_pie",
+                **SG_KWARGS,
+            )
+        self.load_defaults()
         print(
             f"\n ⓘ  easyPyPI template files are located in:\n  {self.__class__.easypypi_dirpath}",
             **options if kwargs.get("redirect") else {},
@@ -57,7 +66,6 @@ class Package(CleverDict):
         )
         if options["_break"] is True:
             return
-        self.load_defaults()
         # As above... must Load before Setting any other values with autosave on
         if self.name and self.get("setup_filepath_str"):
             self.get_user_input()
@@ -103,27 +111,17 @@ class Package(CleverDict):
                 options[key] = default_value
         return options, kwargs
 
-    def load_defaults(self, name=None, review=True):
+    def load_defaults(self):
         """
         Entry point for loading default Package values as attributes.
         Choose between last updated JSON config file, and setup.py if it exists.
         """
         self.create_skeleton_config_file()
-        # Important!  Defaults must be loaded from file (if possible) first:
         self.load_defaults_from_config_file()
-        if name:
-            self.name = name
-        else:
-            self.name = sg.popup_get_text(
-                "Please enter a name for this package (all lowercase, underscores if needed):",
-                default_text=self.get("name") or "as_easy_as_pie",
-                **SG_KWARGS,
-            )
-        if review and self.name:
-            self.create_folder_structure()
-            if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
-                # setup.py exists & isn't empty, overwrite default values
-                self.load_defaults_from_setup_py()
+        self.create_folder_structure()
+        if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
+            # If setup.py exists & isn't empty, overwrite default values
+            self.load_defaults_from_setup_py()
 
     def load_defaults_from_config_file(self):
         """
@@ -217,7 +215,7 @@ class Package(CleverDict):
                 username = keyring.get_credential(account, None).username
             except AttributeError:
                 username = sg.popup_get_text(
-                    f'Please enter your {account.replace("_", " ")} username (not saved to file):',
+                    f'Please enter your {account.replace("_", " ")} username (saved securely with `keyring`):',
                     default_text=self.get("Github_username"),
                     **SG_KWARGS,
                 )
@@ -393,8 +391,14 @@ class Package(CleverDict):
         layout += [[sg.Text(" " * 200, font="calibri 6")]]
         for group, group_text in GROUP_CLASSIFIERS.items():
             choices[group] = [x for x in CLASSIFIER_LIST if x.startswith(group)]
-            selected_choices[group] = [x for x in self.classifiers.split(", ") if x.startswith(group)]
-            if group == "Programming Language :: Python" and not selected_choices[group]:
+            self.classifiers = self.get("classifiers") or ""
+            selected_choices[group] = [
+                x for x in self.classifiers.split(", ") if x.startswith(group)
+            ]
+            if (
+                group == "Programming Language :: Python"
+                and not selected_choices[group]
+            ):
                 selected_choices[group] = [
                     x
                     for x in choices[group]
@@ -441,25 +445,29 @@ class Package(CleverDict):
         layout += [
             [sg.Text(" " * 200, font="calibri 6")],
             [
-                sg.Button("Save", tooltip="Save current values to config.json"),
-                sg.Button("Upversion", tooltip="Update Version number incrementally"),
+                sg.Button("Save", tooltip="Save current values to config.json."),
+                sg.Button("Upversion", tooltip="Update Version number incrementally."),
                 sg.Button(
-                    "Generate", tooltip="Create/update setup.py and tar.gz files"
+                    "Generate",
+                    tooltip="Create/update setup.py and tar.gz files ready for publishing.",
                 ),
                 sg.Button(
-                    "Publish", tooltip="Upload/update package on PyPI and/or TestPyPI"
+                    "Publish", tooltip="Upload/update package on PyPI and/or TestPyPI."
                 ),
                 sg.Button(
                     image_data=ICON_BUY_ME_A_COFFEE,
                     key="Coffee",
-                    tooltip="Show your appreciation for all the time you're saving with easyPyPI",
+                    tooltip="Show your appreciation for all the time you're saving with easyPyPI.",
                 ),
                 sg.Button(
-                    "Accounts",
-                    tooltip="Create an account on PyPI, TestPyPI and/or Github",
+                    "Create Accounts",
+                    tooltip="Create an account on PyPI, TestPyPI and/or Github.",
                 ),
-                sg.Button("Github", tooltip="Create an initial repository on Github"),
-                sg.Button("Config", tooltip="Open/Edit config.json file"),
+                sg.Button(
+                    "Github Push",
+                    tooltip="Automatically create an initial repository on Github.",
+                ),
+                sg.Button("config.json", tooltip="Open/Edit your config.json file."),
             ],
         ]
         return layout
