@@ -25,6 +25,7 @@ import PySimpleGUI as sg
 import shutil
 import webbrowser
 
+
 class Package(CleverDict):
     """
     Methods and data relating to a Python module/package in preparation for
@@ -38,6 +39,7 @@ class Package(CleverDict):
     redirect : Send stdout and stderr to PySimpleGUI Debug Window
 
     """
+
     sg.change_look_and_feel("DarkAmber")
     easypypi_dirpath = Path(__file__).parent
     config_filepath = Path(click.get_app_dir("easyPyPI")) / ("config.json")
@@ -50,8 +52,10 @@ class Package(CleverDict):
             f"\n ⓘ  easyPyPI template files are located in:\n  {self.__class__.easypypi_dirpath}",
             **options if kwargs.get("redirect") else {},
         )
-        print(f"\n ⓘ  Your easyPyPI config file is:\n  {self.__class__.config_filepath}")
-        if options['_break'] is True:
+        print(
+            f"\n ⓘ  Your easyPyPI config file is:\n  {self.__class__.config_filepath}"
+        )
+        if options["_break"] is True:
             return
         self.load_defaults()
         # As above... must Load before Setting any other values with autosave on
@@ -99,7 +103,7 @@ class Package(CleverDict):
                 options[key] = default_value
         return options, kwargs
 
-    def load_defaults(self, name=None, review= True):
+    def load_defaults(self, name=None, review=True):
         """
         Entry point for loading default Package values as attributes.
         Choose between last updated JSON config file, and setup.py if it exists.
@@ -156,8 +160,8 @@ class Package(CleverDict):
         doesn't already exist or if the current one is empty).
         """
         if (
-                self.__class__.config_filepath.is_file()
-                and self.__class__.config_filepath.stat().st_size
+            self.__class__.config_filepath.is_file()
+            and self.__class__.config_filepath.stat().st_size
         ):
             return
         try:
@@ -167,7 +171,9 @@ class Package(CleverDict):
             pass
         with open(self.__class__.config_filepath, "w") as file:
             json.dump({"version": "0.1"}, file)  # Create skeleton .json file
-        print(f"\n ⚠  Skeleton config file created:\n  {self.__class__.config_filepath}")
+        print(
+            f"\n ⚠  Skeleton config file created:\n  {self.__class__.config_filepath}"
+        )
 
     def create_folder_structure(self):
         """
@@ -211,17 +217,17 @@ class Package(CleverDict):
                 username = keyring.get_credential(account, None).username
             except AttributeError:
                 username = sg.popup_get_text(
-                        f'Please enter your {account.replace("_", " ")} username (not saved to file):',
-                        default_text=self.get("Github_username"),
-                        **SG_KWARGS,
-                    )
+                    f'Please enter your {account.replace("_", " ")} username (not saved to file):',
+                    default_text=self.get("Github_username"),
+                    **SG_KWARGS,
+                )
             if not username:
                 return False
             setattr(self, f"{account}_username", username)
         return self.get(f"{account}_username")
 
-    def set_password(self, account, pw = ""):
-        """ Sets a new value for .accoutn_password and also in `keyring`.
+    def set_password(self, account, pw=""):
+        """Sets a new value for .accoutn_password and also in `keyring`.
 
         If no pw is supplied, set pw to "", which will trigger a pw prompt
         when check_password() is called.
@@ -231,7 +237,7 @@ class Package(CleverDict):
         True if password is set successsfully,
         False if password is not set successfully.
         """
-        keyring.set_password(account, getattr(self, account+"_username"), pw)
+        keyring.set_password(account, getattr(self, account + "_username"), pw)
         setattr(self, f"{account}_password", pw)
         return self.check_password(account)
 
@@ -252,7 +258,7 @@ class Package(CleverDict):
         False if "cancel", "", or "X".
         """
         if not self.get(f"{account}_password"):
-            pw = keyring.get_password(account, getattr(self, account+"_username"))
+            pw = keyring.get_password(account, getattr(self, account + "_username"))
             if not pw:
                 pw = sg.popup_get_text(
                     f'Please enter your {account.replace("_", " ")} password (not saved to file):',
@@ -262,7 +268,7 @@ class Package(CleverDict):
             if not pw:
                 return False
             setattr(self, f"{account}_password", pw)
-            keyring.set_password(account, getattr(self, account+"_username"), pw)
+            keyring.set_password(account, getattr(self, account + "_username"), pw)
         return True
 
     def delete_credentials(self, account):
@@ -271,7 +277,10 @@ class Package(CleverDict):
         .username remains in memory but .password was only ever an @property.
         """
         username = self.get(f"{account}_username")
-        choice = sg.popup_yes_no(f"Do you really want to delete {account} credentials for {username}?", **SG_KWARGS)
+        choice = sg.popup_yes_no(
+            f"Do you really want to delete {account} credentials for {username}?",
+            **SG_KWARGS,
+        )
         if choice == "Yes":
             for key in [f"{account}_username", f"{account}_password"]:
                 if self.get(key):
@@ -279,7 +288,9 @@ class Package(CleverDict):
             try:
                 keyring.delete_password(account, username)
             except PasswordDeleteError:
-                print("\n ⓘ  keyring Credentials couldn't be deleted. Perhaps they already were?")
+                print(
+                    "\n ⓘ  keyring Credentials couldn't be deleted. Perhaps they already were?"
+                )
 
     @property
     def setup_filepath(self):
@@ -353,18 +364,23 @@ class Package(CleverDict):
             "keywords": "Keywords (separated by a comma):",
             "requirements": "Any additional packages/modules required:",
         }
-        self.version = self.get('version') or self.get_default_version()
+        self.version = self.get("version") or self.get_default_version()
         self.get_username("Github")  # .Github_username created in place
         self.url = self.get_default_url()
-        self.description = self.get('description')
-        self.author = self.get('author') or self.get_default_author()
-        self.email = self.get('email') or self.get_default_email()
-        self.keywords = self.get('keywords') or self.get_default_keywords()
-        self.requirements = self.get('requirements') or self.get_default_requirements()
-        layout = [[sg.Text(" "*200, font="calibri 6")]]
+        self.description = self.get("description")
+        self.author = self.get("author") or self.get_default_author()
+        self.email = self.get("email") or self.get_default_email()
+        self.keywords = self.get("keywords") or self.get_default_keywords()
+        self.requirements = self.get("requirements") or self.get_default_requirements()
+        layout = [[sg.Text(" " * 200, font="calibri 6")]]
         for key, prompt in prompts.items():
             default = self.get(key)
-            layout += [[sg.Text(prompt, size=(40, 0)), sg.Input(self.get(key), key=key, size=(50, 0))]]
+            layout += [
+                [
+                    sg.Text(prompt, size=(40, 0)),
+                    sg.Input(self.get(key), key=key, size=(50, 0)),
+                ]
+            ]
         return layout
 
     def get_main_layout_classifiers(self, layout):
@@ -374,27 +390,29 @@ class Package(CleverDict):
         """
         choices = {}
         selected_choices = {}
-        layout += [[sg.Text(" "*200, font="calibri 6")]]
+        layout += [[sg.Text(" " * 200, font="calibri 6")]]
         for group, group_text in GROUP_CLASSIFIERS.items():
             choices[group] = [x for x in CLASSIFIER_LIST if x.startswith(group)]
             selected_choices[group] = []
-            if group == 'Programming Language :: Python':
+            if group == "Programming Language :: Python":
                 selected_choices[group] = [
-                    x for x in choices[group] if any(
-                        [x.endswith(y) for y in ["3.6", "3.7", "3.8", "3.9"]]
-                    )
+                    x
+                    for x in choices[group]
+                    if any([x.endswith(y) for y in ["3.6", "3.7", "3.8", "3.9"]])
                 ]
-            if group == 'License :: OSI Approved ::':
+            if group == "License :: OSI Approved ::":
                 # License names aren't identical between PyPI and Github
                 choices[group] = [
-                    x for x in choices[group] if any(
-                        [x.endswith(y) for y in LICENSE_NAMES.values()]
-                    )
+                    x
+                    for x in choices[group]
+                    if any([x.endswith(y) for y in LICENSE_NAMES.values()])
                 ]
                 selected_choices[group] = ["License :: OSI Approved :: MIT License"]
-            for group_name, default in {'Operating System': "OS Independent",
-                                    'Development Status': "- Alpha",
-                                    'Intended Audience': "Developers"}.items():
+            for group_name, default in {
+                "Operating System": "OS Independent",
+                "Development Status": "- Alpha",
+                "Intended Audience": "Developers",
+            }.items():
                 if group == group_name:
                     selected_choices[group] = [
                         x for x in choices[group] if x.endswith(default)
@@ -420,24 +438,28 @@ class Package(CleverDict):
         Returns: layout (PySimpleGUI list)
         """
         layout += [
-            [sg.Text(" "*200, font="calibri 6")],
+            [sg.Text(" " * 200, font="calibri 6")],
             [
-                sg.Button("Save",
-            tooltip="Save current values to config.json"),
-            sg.Button("Generate",
-            tooltip="Create/update setup.py and tar.gz files"),
-            sg.Button("Publish",
-            tooltip="Upload/update package on PyPI and/or TestPyPI"),
-            sg.Button(image_data=ICON_BUY_ME_A_COFFEE,
-            key="Coffee",
-            tooltip="Show your appreciation for all the time you're saving with easyPyPI"),
-            sg.Button("Accounts",
-            tooltip="Create an account on PyPI, TestPyPI and/or Github"),
-            sg.Button("Github",
-            tooltip="Create an initial repository on Github"),
-            sg.Button("Config",
-            tooltip="Open/Edit config.json file"),
-            ]]
+                sg.Button("Save", tooltip="Save current values to config.json"),
+                sg.Button(
+                    "Generate", tooltip="Create/update setup.py and tar.gz files"
+                ),
+                sg.Button(
+                    "Publish", tooltip="Upload/update package on PyPI and/or TestPyPI"
+                ),
+                sg.Button(
+                    image_data=ICON_BUY_ME_A_COFFEE,
+                    key="Coffee",
+                    tooltip="Show your appreciation for all the time you're saving with easyPyPI",
+                ),
+                sg.Button(
+                    "Accounts",
+                    tooltip="Create an account on PyPI, TestPyPI and/or Github",
+                ),
+                sg.Button("Github", tooltip="Create an initial repository on Github"),
+                sg.Button("Config", tooltip="Open/Edit config.json file"),
+            ],
+        ]
         return layout
 
     def get_user_input(self):
@@ -448,7 +470,13 @@ class Package(CleverDict):
         layout = self.get_main_layout_inputs()
         layout, choices, selected_choices = self.get_main_layout_classifiers(layout)
         layout = self.get_main_layout_buttons(layout)
-        window = sg.Window("easyPyPI", layout, keep_on_top=SG_KWARGS['keep_on_top'], icon=SG_KWARGS['icon'], element_justification="center")
+        window = sg.Window(
+            "easyPyPI",
+            layout,
+            keep_on_top=SG_KWARGS["keep_on_top"],
+            icon=SG_KWARGS["icon"],
+            element_justification="center",
+        )
         while True:
             event, values = window.read()
             if event is None:
@@ -459,8 +487,8 @@ class Package(CleverDict):
             if event == "Generate":
                 if not self.get("upversioned_already"):
                     self.version = self.next_version
-                    window['version'].update(value=self.version)
-                    values['version'] = self.version
+                    window["version"].update(value=self.version)
+                    values["version"] = self.version
                 self.upversioned_already = False  # reset for next time
                 self.save_user_input(values, selected_choices)
                 print(values)
@@ -477,7 +505,11 @@ class Package(CleverDict):
                 webbrowser.open("https://www.buymeacoffee.com/pfython")
             if isinstance(event, tuple):
                 group = event[1]
-                prompt_with_choices(group, choices=choices[group], selected_choices=selected_choices[group])
+                prompt_with_choices(
+                    group,
+                    choices=choices[group],
+                    selected_choices=selected_choices[group],
+                )
                 window[event].update(value="\n".join(selected_choices[group]))
 
     def save_user_input(self, values, selected_choices):
@@ -491,11 +523,13 @@ class Package(CleverDict):
         for value in selected_choices.values():
             self.classifiers.extend(value)
         self.classifiers = ", ".join(self.classifiers)
-        self.license_name_pypi = selected_choices['License :: OSI Approved ::']
+        self.license_name_pypi = selected_choices["License :: OSI Approved ::"]
         self.license_name_pypi = self.license_name_pypi[0].split(":: ")[-1]
         for spdx_id, pypi_name in LICENSE_NAMES.items():
             if self.license_name_pypi.endswith(pypi_name):
-                self.license_name_github = [x.name for x in LICENSES if x.spdx_id == spdx_id][0]
+                self.license_name_github = [
+                    x.name for x in LICENSES if x.spdx_id == spdx_id
+                ][0]
                 break
         self.create_license()
         self.update_script_lines()
@@ -513,8 +547,10 @@ class Package(CleverDict):
         replacements = dict()
         self.license_text = license_dict.body
         if license_dict.key == "lgpl-3.0":
-            self.license_text += '\nThis license is an additional set of permissions to the ' \
-                            '<a href="/licenses/gpl-3.0">GNU GPLv3</a> license which is reproduced below:\n\n'
+            self.license_text += (
+                "\nThis license is an additional set of permissions to the "
+                '<a href="/licenses/gpl-3.0">GNU GPLv3</a> license which is reproduced below:\n\n'
+            )
             gpl3 = [x for x in LICENSES if x.key == "gpl-3.0"][0]
             self.license_text += gpl3.body
         if license_dict.key == "mit":
@@ -558,23 +594,26 @@ class Package(CleverDict):
 
         """
         url = r"https://pypi.org/account/register/"
-        accounts = {"Github": "https://github.com/join",
-                    "PyPI": url,
-                    "Test PyPI": url.replace("pypi", "test.pypi"),}
+        accounts = {
+            "Github": "https://github.com/join",
+            "PyPI": url,
+            "Test PyPI": url.replace("pypi", "test.pypi"),
+        }
         if filter:
-            accounts = {k:v for k,v in accounts.items() if k == filter}
+            accounts = {k: v for k, v in accounts.items() if k == filter}
         for account, url in accounts.items():
             if not self.get(account + "username"):
                 response = sg.popup_yes_no(
-                    f"Do you need to register for an account on {account}?", **SG_KWARGS)
+                    f"Do you need to register for an account on {account}?", **SG_KWARGS
+                )
                 if response is None:
                     return
                 if response == "Yes":
                     print(
-                        f'\n ⚠  Please create a {account} account, '
-                        f'then return to easyPyPI to continue the process...')
+                        f"\n ⚠  Please create a {account} account, "
+                        f"then return to easyPyPI to continue the process..."
+                    )
                     webbrowser.open(url)
-
 
     def generate_files_and_folders(self):
         """
@@ -635,10 +674,12 @@ class Package(CleverDict):
         create_file(sfp / "LICENSE", self.license_text, overwrite=True)
         create_file(self.setup_filepath, self.script_lines, overwrite=True)
         # Other files are just bare-bones initially, imported from templates:
-        templates = {"readme_template.md": sfp/"README.md",
-                     "init_template.py": sfp/self.name/"__init__.py",
-                     "script_template.py": sfp/self.name/(self.name + ".py"),
-                     "test_template.py": sfp/self.name/("test_" + self.name + ".py"), }
+        templates = {
+            "readme_template.md": sfp / "README.md",
+            "init_template.py": sfp / self.name / "__init__.py",
+            "script_template.py": sfp / self.name / (self.name + ".py"),
+            "test_template.py": sfp / self.name / ("test_" + self.name + ".py"),
+        }
         # Read in, make replacements, create in new folder structure
         for template_filepath, destination_path in templates.items():
             template_filepath = self.easypypi_dirpath / template_filepath
@@ -682,10 +723,10 @@ class Package(CleverDict):
         params += f" dist/*-{self.version}.tar.gz "
         os.chdir(self.setup_filepath.parent)
         if os.system(
-                f'cmd /c "python -m twine upload '
-                f'--repository {params} '
-                f'-u {username} '
-                f'-p {keyring.get_password(account, username)}"'
+            f'cmd /c "python -m twine upload '
+            f"--repository {params} "
+            f"-u {username} "
+            f'-p {keyring.get_password(account, username)}"'
         ):
             # A return value of 1 (True) indicates an error
             print("\n ⚠  Problem uploading with Twine; probably either:")
@@ -704,7 +745,7 @@ class Package(CleverDict):
             if response == "Yes":
                 print()
                 if not os.system(
-                        f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'
+                    f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'
                 ):
                     # A return value of 1 indicates an error, 0 indicates success
                     print(
@@ -726,10 +767,11 @@ class Package(CleverDict):
         git push -u origin main
         """
         choice = sg.popup_yes_no(
-            f'Do you want to upload (Push) your package to Github?\n\n ⚠   CAUTION - '
-            f'Only recommended when creating your repository for the first time!  '
-            f'This automation will run the following commands:\n\n{commands}',
-            **SG_KWARGS, )
+            f"Do you want to upload (Push) your package to Github?\n\n ⚠   CAUTION - "
+            f"Only recommended when creating your repository for the first time!  "
+            f"This automation will run the following commands:\n\n{commands}",
+            **SG_KWARGS,
+        )
         if choice != "Yes":
             return
         os.chdir(self.setup_filepath.parent)
@@ -742,7 +784,8 @@ class Package(CleverDict):
         """ Creates an empty repository on Github """
         choice = sg.popup_yes_no(
             f"Do you want to create a repository on Github?\n",
-            **SG_KWARGS, )
+            **SG_KWARGS,
+        )
         if choice != "Yes":
             return
         account = "Github"
@@ -751,12 +794,12 @@ class Package(CleverDict):
         if not self.check_password(account):
             return
         browser = mechanicalsoup.StatefulBrowser(
-            soup_config={'features': 'lxml'},
+            soup_config={"features": "lxml"},
             raise_on_404=True,
-            user_agent='MyBot/0.1: mysite.example.com/bot_info',
+            user_agent="MyBot/0.1: mysite.example.com/bot_info",
         )
         browser.open("https://github.com/login")
-        browser.select_form('#login form')
+        browser.select_form("#login form")
         browser["login"] = self.Github_username
         browser["password"] = self.Github_password
         resp = browser.submit_selected()
@@ -764,7 +807,9 @@ class Package(CleverDict):
         try:
             browser.select_form('form[action="/repositories"]')
         except LinkNotFoundError:
-            print(f"\n ⚠  Unable to log in to Github with username {self.Github_username}.  Please resubmit Github password, double check your username, and try again...")
+            print(
+                f"\n ⚠  Unable to log in to Github with username {self.Github_username}.  Please resubmit Github password, double check your username, and try again..."
+            )
             self.set_password("Github")
             browser.close()
             return
@@ -774,19 +819,33 @@ class Package(CleverDict):
         resp = browser.submit_selected()
         self.publish_to_github()
         webbrowser.open(self.url)
-        #browser.launch_browser()
+        # browser.launch_browser()
+
 
 def prompt_with_choices(group, choices, selected_choices):
     """
     Creates a scrollable popup using PySimpleGui checkboxes or radio buttons.
     Returns a set of selected choices, or and empty set
     """
-    if group in ['Development Status', 'License :: OSI Approved ::']:
-        layout = [[sg.Radio(text=choice, group_id=group, key=choice, default=choice in selected_choices)] for choice in choices]
+    if group in ["Development Status", "License :: OSI Approved ::"]:
+        layout = [
+            [
+                sg.Radio(
+                    text=choice,
+                    group_id=group,
+                    key=choice,
+                    default=choice in selected_choices,
+                )
+            ]
+            for choice in choices
+        ]
     else:
-        layout = [[sg.Checkbox(text=choice, key=choice, default=choice in selected_choices)] for choice in choices]
+        layout = [
+            [sg.Checkbox(text=choice, key=choice, default=choice in selected_choices)]
+            for choice in choices
+        ]
     buttons = [sg.Button("Accept"), sg.Button("Cancel")]
-    if group == 'License :: OSI Approved ::':
+    if group == "License :: OSI Approved ::":
         buttons += [sg.Button("License Help")]
     choices_window = sg.Window(
         f"Classifiers for the {group.title()} group",
@@ -803,8 +862,8 @@ def prompt_with_choices(group, choices, selected_choices):
         ],
         size=(600, 300),
         resizable=True,
-        keep_on_top=SG_KWARGS['keep_on_top'],
-        icon=SG_KWARGS['icon'],
+        keep_on_top=SG_KWARGS["keep_on_top"],
+        icon=SG_KWARGS["icon"],
     )
     while True:
         event, values = choices_window.read(close=False)
