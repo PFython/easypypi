@@ -1,11 +1,9 @@
 import json
 from json import JSONDecodeError
 from pathlib import Path
+from cleverdict import CleverDict
 
 import requests
-
-filename = str(Path(__file__).parent / 'licenses.json')
-
 
 def fetch_license_data():
     """
@@ -20,11 +18,39 @@ def fetch_license_data():
         "AGPL": "https://api.github.com/licenses/agpl-3.0",
         "Apache": "https://api.github.com/licenses/apache-2.0",
         "Unlicense": "https://api.github.com/licenses/unlicense",
+        "Boost": "https://api.github.com/licenses/bsl-1.0",
     }
     licenses = [requests.get(api_link).json()
                 for api_link in api_links.values()]
     return licenses
 
+def load_licenses_json():
+    """
+    Loads license metadata from licenses.json and converts each license to
+    a cleverdict.
+
+    Returns: List of 8 cleverdicts, one for each main license type
+    """
+    license_dict_path = Path(LICENSES_FILENAME)
+    if license_dict_path.is_file():
+        with license_dict_path.open('r') as file:
+            license_dict = json.load(file)
+        return [CleverDict(x) for x in license_dict]
+    else:
+        return []
+
+LICENSES_FILENAME = str(Path(__file__).parent / 'licenses.json')
+LICENSE_NAMES = {'MIT': 'MIT License',
+                 'GPL-3.0': 'GNU General Public License v3 (GPLv3)',
+                 'LGPL-3.0': 'GNU Lesser General Public License v3 (LGPLv3)',
+                 'MPL-2.0': 'Mozilla Public License 2.0 (MPL 2.0)',
+                 'AGPL-3.0': 'GNU Affero General Public License v3',
+                 'Apache-2.0': 'Apache Software License',
+                 'Unlicense': 'The Unlicense (Unlicense)',
+                 'BSL-1.0': 'Boost Software License 1.0 (BSL-1.0)',}
+# Key: spdx_id from JSON
+# Value: PyPI license name under 'License :: OSI Approved ::'
+LICENSES = load_licenses_json()
 
 if __name__ == "__main__":
     """
@@ -33,9 +59,8 @@ if __name__ == "__main__":
 
     licenses.json is imported by the main module easypypi.py
     """
-    HERE = Path(filename).parent
-    # print(f"{filename} located in {HERE}")
-    file = Path(filename)
+    HERE = Path(LICENSES_FILENAME).parent
+    file = Path(LICENSES_FILENAME)
     valid_json = True
 
     try:

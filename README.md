@@ -20,7 +20,7 @@ Well now there is!  With `easyPyPI` you don't have to spend hours...
 - Manually creating a `setup.py` script and wondering what on earth to put in it
 - Remembering to update your Version number each time you publish
 - Running `setup.py` in just the right way to create your distribution files
-- Installing and running `twine` in just the right way to upload your package to **Test PyPI** then **PyPI**
+- Installing and running `twine` in just the right way to publish your package to **Test PyPI** then **PyPI**
 - Setting environment variables or creating a `.pypirc` file for `twine`  to use
 - Getting your **Test PyPI** and **PyPI** credentials mixed up
 
@@ -58,6 +58,8 @@ Your last set of answers (except passwords) are stored in a JSON config file wil
 If you want to create a skeleton `Package` object but return early to the command line, you can use the `_break` keyword argument:
 
     >>> package = Package("as_easy_as_pie", _break=True)
+    >>> package.keys()
+    dict_keys(['version', 'script_lines', 'name', 'setup_filepath_str'])
 
 If you want to create a `Package` object but skip the default review of metadata, you can use the `review` keyword argument:
 
@@ -71,7 +73,7 @@ Apart from the obvious `__init__` when you create your `Package`, there are four
 - `.load_defaults()`
 - `.review()`
 - `.generate()`
-- `.upload()`
+- `.publish()`
 
 A quick read through the code in each of these entry points will help you get your head around the process flow and you'll see exactly what other functions are being called, and in what order.  Here's a quick summary...
 
@@ -93,23 +95,19 @@ When you call this method you'll be prompted for a whole load of metadata that d
 
 ## The `.generate()` Entry Point
 
-Once you're happy with all your metadata and get into the cycle of publishing new versions of your code, this method does the job of upversioning your package, generating a new `setup.py` file and pulling everything together in a `tar.gz` file ready for uploading:
+Once you're happy with all your metadata and get into the cycle of publishing new versions of your code, this method does the job of upversioning your package, generating a new `setup.py` file and pulling everything together in a `tar.gz` file ready for publishing:
 
     >>> package.generate()
 
-## The `.upload()` Entry Point
+## The `.publish()` Entry Point
 
-Finally, when you're  ready to upload your latest `Package` to **Test PyPI** or **PyPI**, just call:
+Finally, when you're  ready to publish your latest `Package` to **Test PyPI** or **PyPI**, just call:
 
-    >>> package.upload()
+    >>> package.publish()
 
 This entry point also includes a handy option to auto-create a new (private) Github repository and automatically Push your new package files and folders.
 
 # 4. OTHER FEATURES
-
-Check which essential values haven't yet been set:
-
-    >>> package.summary()
 
 Automatically generate the next version number for your `Package` (more schemas coming soon):
 
@@ -145,6 +143,22 @@ To see what else you can play with using your `Package` object:
 
     >>> package.keys()
     # You can then get/set values using object.attribute or dictionary['key'] notation
+
+`esyPyPI` uses `keyring` to store credentials.  To manage these credentials manually:
+
+    >>> account = "Github"  # or "PyPI" or "Test_PyPI"
+    >>> package.Github_username = "testuser"
+
+    >>> package.get_username(account) == package.Github_username == "testuser"
+    True
+
+    >>> package.set_password(account, "testpw")  # Prompts for pw if none given
+    True
+
+    >>> package.Github_password
+    'testpw'
+
+    >>> package.delete_credentials(account)
 
 # 5. CONTRIBUTING
 This is the author's first open source project and any help is welcome!
