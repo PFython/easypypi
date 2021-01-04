@@ -5,7 +5,7 @@ def get_classifiers():
     return [x.split('"', 1)[0] for x in page[1:]]
 
 
-classifier_list = [
+CLASSIFIER_LIST = [
     "Development Status :: 1 - Planning",
     "Development Status :: 2 - Pre-Alpha",
     "Development Status :: 3 - Alpha",

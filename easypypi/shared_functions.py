@@ -35,7 +35,7 @@ def update_line(script_lines, old_line_starts, new_value):
         if line.lstrip().startswith(old_line_starts):
             try:
                 if isinstance(new_value, list):
-                # Add quotation marks unless list
+                    # Add quotation marks unless list
                     new_value = ", ".join(new_value)
                 else:
                     new_value = f'"{new_value}"'
