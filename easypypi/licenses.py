@@ -2,7 +2,6 @@ import json
 from json import JSONDecodeError
 from pathlib import Path
 from cleverdict import CleverDict
-
 import requests
 
 
@@ -42,6 +41,7 @@ def load_licenses_json():
 
 
 LICENSES_FILENAME = str(Path(__file__).parent / "licenses.json")
+LICENSES = load_licenses_json()
 LICENSE_NAMES = {
     "MIT": "MIT License",
     "GPL-3.0": "GNU General Public License v3 (GPLv3)",
@@ -52,9 +52,8 @@ LICENSE_NAMES = {
     "Unlicense": "The Unlicense (Unlicense)",
     "BSL-1.0": "Boost Software License 1.0 (BSL-1.0)",
 }
-# Key: spdx_id from JSON
-# Value: PyPI license name under 'License :: OSI Approved ::'
-LICENSES = load_licenses_json()
+# Key: spdx_id from licenses.json
+# Value: PyPI license name under 'License :: OSI Approved ::' Classifier.
 
 if __name__ == "__main__":
     """

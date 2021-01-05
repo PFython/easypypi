@@ -1,3 +1,6 @@
+import requests
+
+
 def get_classifiers():
     """ Returns an up to date list of classifiers from PyPI """
     page = requests.get("https://pypi.org/classifiers/").text

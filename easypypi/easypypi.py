@@ -8,12 +8,12 @@ from .utils import REPLACEMENTS
 from .utils import SETUP_FIELDS
 from .utils import SG_KWARGS
 from cleverdict import CleverDict
-from decimal import Decimal as decimal
 from keyring.errors import PasswordDeleteError
 from mechanicalsoup.utils import LinkNotFoundError
 from pathlib import Path
+from pep440_version_utils import Version
 from PySimpleGUI import ICON_BUY_ME_A_COFFEE
-import click  # used to get cross-platform folder path for config file
+import click
 import datetime
 import getpass
 import json
@@ -93,7 +93,7 @@ class Package(CleverDict):
                 for x in self.get_aliases()
                 if "password" not in x.lower()
             }
-            json.dump(fields_dict, file)
+            json.dump(fields_dict, file, indent=4)
         if key:
             if "password" in key.lower():
                 location = "memory but NOT saved to file"
@@ -131,7 +131,7 @@ class Package(CleverDict):
         with open(self.__class__.config_filepath, "r") as file:
             values = json.load(file)
         for key, value in values.items():
-            setattr(self, key, value)
+            self[key] = value
         setup = self.__class__.easypypi_dirpath / "setup_template.py"
         with open(setup, "r") as file:
             self.script_lines = file.readlines()
@@ -147,7 +147,7 @@ class Package(CleverDict):
             for field, attribute in SETUP_FIELDS.items():
                 if line.startswith(field.upper() + " = "):
                     # Use eval in case the value isn't simply a string:
-                    setattr(self, attribute, eval(line.split(" = ")[-1]))
+                    self[attribute] = eval(line.split(" = ")[-1])
         with open(self.setup_filepath, "r") as file:
             self.script_lines = file.readlines()
 
@@ -195,91 +195,102 @@ class Package(CleverDict):
         except FileExistsError:
             print(f"\n ⓘ  Package folder already exists:\n  {setup_dirpath}")
 
-    def get_username(self, account):
+    def get_username(self, account, prompt=True):
         """
-        Loads username for a given account from `keyring` or prompts for a
-        value if (account, None) fails e.g. on iOS.
+        Loads username for a given account from `keyring` or if prompt == True,prompts for a value.
 
         Parameters:
         account -> "Github", "PyPI" or "Test_PyPI"
+        prompt
 
         Sets:
-        .{account}_username
+        .{account}_username if a username is found or supplied
 
         Returns:
         True if successful
-        False if "cancel", "", or "X".
+        False if no username is found in keyring and none supplied when prompted
         """
         if not self.get(f"{account}_username"):
             try:
                 username = keyring.get_credential(account, None).username
             except AttributeError:
-                username = sg.popup_get_text(
-                    f'Please enter your {account.replace("_", " ")} username (saved securely with `keyring`):',
-                    default_text=self.get("Github_username"),
-                    **SG_KWARGS,
-                )
+                if prompt:
+                    username = sg.popup_get_text(
+                        f'Please enter your {account.replace("_", " ")} username (saved securely with `keyring`):',
+                        default_text=self.get("Github_username"),
+                        **SG_KWARGS,
+                    )
+                else:
+                    username = None
             if not username:
                 return False
-            setattr(self, f"{account}_username", username)
+            self[f"{account}_username"] = username
         return self.get(f"{account}_username")
 
     def set_password(self, account, pw=""):
-        """Sets a new value for .accoutn_password and also in `keyring`.
-
-        If no pw is supplied, set pw to "", which will trigger a pw prompt
-        when check_password() is called.
-
-        Returns:
-
-        True if password is set successsfully,
-        False if password is not set successfully.
         """
-        keyring.set_password(account, getattr(self, account + "_username"), pw)
-        setattr(self, f"{account}_password", pw)
-        return self.check_password(account)
-
-    def check_password(self, account):
-        """
-        Checks that a password exists for a given account using `keyring` or
-        prompts for a value if not.
-
-        Parameters:
-        account -> "Github", "PyPI" or "Test_PyPI"
+        Sets a new value for .account_password and also in `keyring`.
+        If no pw is supplied, prompts for a new password.
 
         Sets:
         keyring credentials
         .{account}_password
 
         Returns:
-        True if successful
-        False if "cancel", "", or "X".
+
+        True if password is set successsfully,
+        False if password is not set successfully.
         """
-        if not self.get(f"{account}_password"):
-            pw = keyring.get_password(account, getattr(self, account + "_username"))
-            if not pw:
-                pw = sg.popup_get_text(
-                    f'Please enter your {account.replace("_", " ")} password (not saved to file):',
-                    password_char="*",
-                    **SG_KWARGS,
-                )
-            if not pw:
-                return False
-            setattr(self, f"{account}_password", pw)
-            keyring.set_password(account, getattr(self, account + "_username"), pw)
+        if not pw:
+            pw = sg.popup_get_text(
+                f'Please enter your {account.replace("_", " ")} password (not saved to file):',
+                password_char="*",
+                **SG_KWARGS,
+            )
+        if not pw:
+            return False
+        keyring.set_password(account, getattr(self, account + "_username"), pw)
+        self[f"{account}_password"] = pw
         return True
 
-    def delete_credentials(self, account):
+    def check_password(self, account):
+        """
+        Checks that a password exists as an attribute and if not, looks in
+        `keyring` for a value, and sets it.
+
+        Parameters:
+        account -> "Github", "PyPI" or "Test_PyPI"
+
+        Sets:
+        .{account}_password (if keyring value exists)
+
+        Returns:
+        True if password exists
+        False if no pw exists as an attribute or in keyring.
+        """
+        pw = self.get(f"{account}_password")
+        if not pw:
+            pw = keyring.get_password(account, getattr(self, account + "_username"))
+            if not pw:
+                return self.set_password(account)
+            self[f"{account}_password"] = pw
+        return True
+
+    def delete_credentials(self, account, username=None):
         """
         Delete password AND username from keyring.
         .username remains in memory but .password was only ever an @property.
         """
-        username = self.get(f"{account}_username")
+        if not username:
+            username = self.get(f"{account}_username")
+        if not username:
+            username = keyring.get_credential(account, None).username
         choice = sg.popup_yes_no(
             f"Do you really want to delete {account} credentials for {username}?",
             **SG_KWARGS,
         )
         if choice == "Yes":
+            self.set_password(account, "x")  # pw needs to exist to avoid error
             for key in [f"{account}_username", f"{account}_password"]:
                 if self.get(key):
                     del self[key]
@@ -301,20 +312,6 @@ class Package(CleverDict):
         """
         return Path(self.setup_filepath_str)
 
-    @property
-    def next_version(self):
-        """ Suggests next package version number based on simple schemas """
-        decimal_version = decimal(str(self.version))
-        try:
-            _, digits, exponent = decimal_version.as_tuple()
-            if exponent == 0:  # i.e. 0 decimal places:
-                increment = "0.1"
-            else:
-                increment = "0.01"
-            return str(decimal_version + decimal(increment))
-        except dec.InvalidOperation:
-            return f"{self.version}-new"
-
     def get_default_filepath(self):
         path = Path(self.get("setup_filepath_str") or Path().cwd())
         # Default path should be the parent of self.name and not include it
@@ -323,7 +320,7 @@ class Package(CleverDict):
         return str(path)
 
     def get_default_version(self):
-        return "0.1"
+        return "0.0.1a1"
 
     def get_default_url(self):
         username = self.get_username("Github")
@@ -364,6 +361,8 @@ class Package(CleverDict):
         }
         self.version = self.get("version") or self.get_default_version()
         self.get_username("Github")  # .Github_username created in place
+        self.get_username("PyPI", False)  # Don't prompt for username yet
+        self.get_username("Test_PyPI", False)  # Don't prompt for username yet
         self.url = self.get_default_url()
         self.description = self.get("description")
         self.author = self.get("author") or self.get_default_author()
@@ -445,29 +444,56 @@ class Package(CleverDict):
         layout += [
             [sg.Text(" " * 200, font="calibri 6")],
             [
-                sg.Button("Save", tooltip="Save current values to config.json."),
-                sg.Button("Upversion", tooltip="Update Version number incrementally."),
-                sg.Button(
-                    "Generate",
-                    tooltip="Create/update setup.py and tar.gz files ready for publishing.",
+                sg.ButtonMenu(
+                    "1) Upversion",
+                    [
+                        "",
+                        [
+                            "Next Alpha",
+                            "Next Beta",
+                            "Next Release Candidate",
+                            "Next Micro",
+                            "Next Minor",
+                            "Next Major",
+                        ],
+                    ],
+                    key="1) Upversion",
+                    tooltip="Update Version number incrementally.",
                 ),
                 sg.Button(
-                    "Publish", tooltip="Upload/update package on PyPI and/or TestPyPI."
+                    "2) Generate",
+                    tooltip="Create/update setup.py, tar.gz, and other files ready for publishing.",
+                ),
+                sg.ButtonMenu(
+                    "3) Publish",
+                    ["", ["Test PyPI", "PyPI", "Github"]],
+                    key="3) Publish",
+                    tooltip="Upload/update package on PyPI and/or TestPyPI, or create initial Github repository.",
                 ),
                 sg.Button(
                     image_data=ICON_BUY_ME_A_COFFEE,
                     key="Coffee",
                     tooltip="Show your appreciation for all the time you're saving with easyPyPI.",
                 ),
-                sg.Button(
+                sg.ButtonMenu(
                     "Create Accounts",
+                    [
+                        "",
+                        [
+                            "Register for Test PyPI",
+                            "Register for PyPI",
+                            "Register for Github",
+                        ],
+                    ],
+                    key="Create Accounts",
                     tooltip="Create an account on PyPI, TestPyPI and/or Github.",
                 ),
-                sg.Button(
-                    "Github Push",
-                    tooltip="Automatically create an initial repository on Github.",
+                sg.ButtonMenu(
+                    "Browse Files",
+                    ["", ["README.md", "config.json", "Templates"]],
+                    key="Browse Files",
+                    tooltip="Open/Edit individual files used by easyPyPI.",
                 ),
-                sg.Button("config.json", tooltip="Open/Edit your config.json file."),
             ],
         ]
         return layout
@@ -489,27 +515,57 @@ class Package(CleverDict):
         )
         while True:
             event, values = window.read()
+            try:
+                window["1) Upversion"].TKMenu.configure(
+                    fg="705e52", bg="2c2825"
+                )  # "fdcb52"
+            except:
+                pass  # This workaround attempts to change a non-existent menu
             if event is None:
+                self.save_user_input(values, selected_choices)
                 window.close()
                 return False
-            if event == "Save":
-                self.save_user_input(values, selected_choices)
-            if event == "Upversion":
-                self.version = self.next_version
+            if event == "1) Upversion":
+                version = Version(str(values["version"]))
+                step = values["1) Upversion"]
+                step = step.replace("Next ", "").lower().replace(" ", "_")
+                next_version = getattr(Version, f"next_{step}")
+                self.version = str(next_version(version))
                 window["version"].update(value=self.version)
                 values["version"] = self.version
-            if event == "Generate":
+            if event == "2) Generate":
                 self.save_user_input(values, selected_choices)
                 print(values)
                 self.generate_files_and_folders()
-            if event == "Publish":
-                self.upload_with_twine()
-            if event == "Accounts":
-                self.register_accounts()
-            if event == "Github":
-                self.create_github_repository()
-            if event == "Config":
-                webbrowser.open(self.config_filepath)
+            if event == "3) Publish":
+                if "Github" in values["3) Publish"]:
+                    print("Github!")
+                    self.create_github_repository()
+                else:
+                    self.upload_with_twine(values["3) Publish"])
+            if event == "Create Accounts":
+                account = values["Create Accounts"].replace("Register for ", "")
+                self.register_accounts(account)
+                window["Github_username"].update(value=self.get("Github_username"))
+                window["Test_PyPI_username"].update(
+                    value=self.get("Test_PyPI_username")
+                )
+                window["PyPI_username"].update(value=self.get("PyPI_username"))
+            if event == "Browse Files":
+                choice = values["Browse Files"]
+                if choice == "Templates":
+                    sg.popup_get_file(
+                        "",
+                        no_window=True,
+                        initial_folder=self.easypypi_dirpath,
+                        **SG_KWARGS,
+                    )
+                else:
+                    if choice == "config.json":
+                        choice = self.config_filepath
+                    if choice == "README.md":
+                        choice = self.easypypi_dirpath.with_name(choice)
+                    webbrowser.open(choice)
             if event == "Coffee":
                 webbrowser.open("https://www.buymeacoffee.com/pfython")
             if isinstance(event, tuple):
@@ -527,7 +583,7 @@ class Package(CleverDict):
 
         """
         for key, value in values.items():
-            setattr(self, key, value)
+            self[key] = value
         self.classifiers = []
         for value in selected_choices.values():
             self.classifiers.extend(value)
@@ -586,21 +642,20 @@ class Package(CleverDict):
                 self.script_lines, old_line_starts, new_value
             )
 
-    def register_accounts(self, filter=None):
+    def register_accounts(self, account=None):
         """
         Prompts for TestPyPI/PyPI account names for twine to use.
 
         This approach avoids the need for a .pypirc config file:
         https://packaging.python.org/specifications/pypirc/#common-configurations
 
-        Creates the following attributes in place:
+        Creates one or more of the following attributes in place:
 
         .pypi_username
         .pypi_test_username
         .github_username
 
-        filter : restricts the function to the account specified
-
+        account : restricts the function to the account specified
         """
         url = r"https://pypi.org/account/register/"
         accounts = {
@@ -608,21 +663,28 @@ class Package(CleverDict):
             "PyPI": url,
             "Test PyPI": url.replace("pypi", "test.pypi"),
         }
-        if filter:
-            accounts = {k: v for k, v in accounts.items() if k == filter}
+        if account:
+            accounts = {k: v for k, v in accounts.items() if k == account}
         for account, url in accounts.items():
-            if not self.get(account + "username"):
+            if not self.get(account + "_username"):
                 response = sg.popup_yes_no(
-                    f"Do you need to register for an account on {account}?", **SG_KWARGS
+                    f"Do you need to register online for an account on {account}?",
+                    **SG_KWARGS,
                 )
                 if response is None:
                     return
                 if response == "Yes":
-                    print(
-                        f"\n ⚠  Please create a {account} account, "
-                        f"then return to easyPyPI to continue the process..."
-                    )
                     webbrowser.open(url)
+            username = sg.popup_get_text(
+                f"Please register for a {account} account online, "
+                f"then enter your username below:",
+                default_text=self.get(account + "_username"),
+                **SG_KWARGS,
+            )
+            if not username:
+                return False
+            self[f"{account}_username"] = username
+            self.set_password(account)
 
     def generate_files_and_folders(self):
         """
@@ -651,8 +713,8 @@ class Package(CleverDict):
             default_path="",
             multiple_files=True,
         )
-        if files is None:
-            return
+        if not files:
+            return False
         for file in [Path(x) for x in files.split(";")]:
             new_file = self.setup_filepath.parent / self.name / file.name
             if new_file.is_file():
@@ -709,13 +771,14 @@ class Package(CleverDict):
         print(f"\n> Running {self.setup_filepath / 'setup.py'}...")
         os.system('cmd /c "setup.py sdist"')
 
-    def upload_with_twine(self):
+    def upload_with_twine(self, account=None):
         """ Uploads to PyPI or Test PyPI with twine """
-        account = sg.popup(
-            f"Do you want to upload {self.name} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n",
-            **SG_KWARGS,
-            custom_text=("Test PyPI", "PyPI"),
-        )
+        if not account:
+            account = sg.popup(
+                f"Do you want to upload {self.name} to\nTest PyPI, or go FULLY PUBLIC on the real PyPI?\n",
+                **SG_KWARGS,
+                custom_text=("Test PyPI", "PyPI"),
+            )
         if not account:
             return
         if account == "PyPI":
@@ -724,10 +787,10 @@ class Package(CleverDict):
             params = "testpypi"
             account = "Test_PyPI"
         if not self.get_username(account):
-            return
+            return False
         username = getattr(self, f"{account}_username")
         if not self.check_password(account):
-            return
+            self.set_password(account)
         params += f" dist/*-{self.version}.tar.gz "
         os.chdir(self.setup_filepath.parent)
         if os.system(
@@ -763,9 +826,8 @@ class Package(CleverDict):
 
     def publish_to_github(self):
         """ Uploads initial package to Github using Git"""
-        account = "Github"
-        if not self.get_username(account):
-            return
+        if not self.get_username("Github"):
+            return False
         commands = f"""
         git init
         git add *.*
@@ -781,7 +843,7 @@ class Package(CleverDict):
             **SG_KWARGS,
         )
         if choice != "Yes":
-            return
+            return False
         os.chdir(self.setup_filepath.parent)
         for command in commands.splitlines()[1:]:  # Ignore first blank line
             if not os.system(f"cmd /c {command}"):
@@ -790,17 +852,10 @@ class Package(CleverDict):
 
     def create_github_repository(self):
         """ Creates an empty repository on Github """
-        choice = sg.popup_yes_no(
-            f"Do you want to create a repository on Github?\n",
-            **SG_KWARGS,
-        )
-        if choice != "Yes":
-            return
-        account = "Github"
-        if not self.get_username(account):
-            return
-        if not self.check_password(account):
-            return
+        if not self.get_username("Github"):
+            return False
+        if not self.check_password("Github"):
+            self.set_password("Github")
         browser = mechanicalsoup.StatefulBrowser(
             soup_config={"features": "lxml"},
             raise_on_404=True,
@@ -820,7 +875,7 @@ class Package(CleverDict):
             )
             self.set_password("Github")
             browser.close()
-            return
+            return False
         browser["repository[name]"] = self.name
         browser["repository[description]"] = self.description
         browser["repository[visibility]"] = "private"
