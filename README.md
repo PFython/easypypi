@@ -62,15 +62,9 @@ For more precise control you can close the GUI after creating your `package` obj
     >>> package['license_dict'].name
     'MIT License'
 
-    >>> package.version = "2.0"
+    >>> package.version = "2.0.1a1"
 
 # 3. OTHER FEATURES
-
-Automatically generate the next version number for your `Package` (more schemas coming soon):
-
-    >>> package.version = "1.1"
-    >>> package.next_version
-    '1.11'
 
 To find where `easyPyPI` and its default templates were installed:
 
