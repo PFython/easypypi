@@ -39,10 +39,12 @@ def update_line(script_lines, old_line_starts, new_value):
                     new_value = ", ".join(new_value)
                 else:
                     new_value = f'"{new_value}"'
+                old_line = script_lines[index]
                 script_lines[index] = old_line_starts + new_value.rstrip() + "\n"
-                print(
-                    f"\n✓ Updated script line {index + 1}:\n{script_lines[index].rstrip()[:400]}"
-                )
+                if old_line != script_lines[index]:
+                    print(
+                        f"\n✓ Updated script line {index + 1}:\n{script_lines[index].rstrip()[:400]}"
+                    )
                 break  # only update first occurrence
             except (IndexError, TypeError):
                 print(new_value, type(new_value))

@@ -111,7 +111,11 @@ To see what else you can play with using your `Package` object:
 # 4. CONTRIBUTING
 `easyPyPI` was developed in the author's spare time and is hopefully at a stage where it works well and reliably for the original use case.  If you'd like to get get involved please do log any Issues (bugs or feature requests) on Github, or if you feel motiviated to work on any of the existing Issues that would be brilliant!
 
-If you want to contribute code, please follow this simple process:
+If you're tinkering with the code and have just **Cloned** it, you'll probably need to be in the parent directory/parent under which you copied `easyPyPI` and use the following `import` incantation:
+
+    >>> from easypypi.easypypi import *
+
+If you excited enough by the potential of this package to contribute some code, please follow this simple process:
 
 - **Fork** this repository. Also STAR this repository for bonus karma!
 - Create a new **Branch** for the issue or feature you're working on.
@@ -122,7 +126,18 @@ If you'd be kind enough to follow that approach it'll help speed things on their
 
 You can also get in contact on [Twitter](https://twitter.com/appawsom), and we're currently dabbling with the [CodeStream](https://marketplace.visualstudio.com/items?itemName=CodeStream.codestream) extension for VS Code which seems to have some helpful collaborative features, so perhaps we can connect with that too?
 
-# 5. PAYING IT FORWARD
+# 5. CREDITS
+
+Many thanks to the creators of the following awesome packages that `easyPyPI` makes use of 'under the bonnet':
+
+- [`PySimpleGUI`- ](https://github.com/PySimpleGUI/PySimpleGUI) - used to built a nice interface that makes things even quicker and easier.
+- [`Click`- ](https://github.com/pallets/click) - used to get the most suitable (platform specific) folder path for storing config.json.
+- [`MechanicalSoup`- ](https://github.com/MechanicalSoup/MechanicalSoup) - used to automatically login to Github and create/push an initial repository.
+- [`Keyring`- ](https://github.com/jaraco/keyring) - used to store and retrieve account credentials securely.
+- [`pep440_version_utils`- ](https://github.com/m-vdb/pep440-version-utils)` -`-  used to automatically upversion micro, minor, and major version numbers.
+- [`Twine`](https://github.com/pypa/twine) - the "Go To" utility for uploading packages securely to PyPI and Test PyPI.
+
+# 6. PAYING IT FORWARD
 
 If `easyPyPI` helps you save time and focus on more important things, please show your appreciation by at least starring this repository on Github or even better:
 
