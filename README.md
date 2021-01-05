@@ -48,6 +48,8 @@ When you've added all the information you want to include with your package, cli
 
 The next time you run `easyPyPI` with an existing package name and folder location, it will automatically import the contents of the latest `setup.py` file it finds (in preference to `config.json`), so if you want you can make updates directly to `setup.py` but be careful to keep the same basic format so `easyPyPI` has a chance of finding what it needs!
 
+Finally, when you're ready you can upload your package folders and files to PyPI and/or Test PyPI, and even automatically create an initial Repository on Github.  There are buttons for quickly Registering for a PyPI, Test PyPI, and/or Github account if you don't already have that sorted, and also for installing Git if it's your first time using that too.
+
 # 2. UPDATING YOUR PACKAGE
 
 For more precise control you can close the GUI after creating your `package` object, and manually get and set all of the data encapsulated in it.  Thanks to the magic of [`cleverdict`](https://github.com/pfython/cleverdict) you can do this *either* using `object.attribute` or `dictionary['key']` notation, whichever you prefer:
