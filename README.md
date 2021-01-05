@@ -44,9 +44,9 @@ Once you've gone through the creation process fully (or even partially), your re
 
 ![](https://github.com/PFython/easypypi/blob/main/screenshot.png?raw=true)
 
-When you've added all the information you want to include with your package, click the `Generate` button to create a basic folder structure and populate it with all the standard files you'll need such as a README and LICENSE.
+When you've added all the information you want to include with your package, click the `Upversion` button to update your [PEP440](https://www.python.org/dev/peps/pep-0440/) compliant version number as required, then click the `Generate` button to create a basic folder structure and populate it with all the standard files you'll need such as a README and LICENSE.
 
-The next time you run `easyPyPI` with an existing package name and folder location, it will automatically import the contents of the latest `setup.py` file it finds(in preference to `config.json`), so if you want you can make updates directly to `setup.py` but be careful to keep the same basic format so `easyPyPI` has a chance of finding what it needs!
+The next time you run `easyPyPI` with an existing package name and folder location, it will automatically import the contents of the latest `setup.py` file it finds (in preference to `config.json`), so if you want you can make updates directly to `setup.py` but be careful to keep the same basic format so `easyPyPI` has a chance of finding what it needs!
 
 # 2. UPDATING YOUR PACKAGE
 
