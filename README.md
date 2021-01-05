@@ -21,6 +21,7 @@ Well now there is!  With `easyPyPI` you don't have to spend hours...
 - Remembering to update your Version number each time you publish
 - Running `setup.py` in just the right way to create your distribution files
 - Installing and running `twine` in just the right way to publish your package to **Test PyPI** then **PyPI**
+- Creating a new Repository on Github and uploading the folders and files you just created.
 - Setting environment variables or creating a `.pypirc` file for `twine`  to use
 - Getting your **Test PyPI** and **PyPI** credentials mixed up
 
