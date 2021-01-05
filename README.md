@@ -40,7 +40,7 @@ Then just follow the prompts to provide the information required to describe you
 
 ![](https://media.giphy.com/media/Nw8z2olm0nGHC/giphy.gif)
 
-Once you've gone through the creation process fully (or even partially), click the `Save` button to store your responses in a JSON config file located in the recommended settings folder for your Operating System.  When you start again `easyPyPI` will helpfully remember your previous answers.
+Once you've gone through the creation process fully (or even partially), your responses are stored in a JSON config file located in the 'usual' settings folder for your Operating System.  When you start again `easyPyPI` will helpfully remember your previous answers.
 
 ![](https://github.com/PFython/easypypi/blob/main/screenshot.png?raw=true)
 
