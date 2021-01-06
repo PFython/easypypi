@@ -86,6 +86,14 @@ class Package(CleverDict):
         del self.x
         self.save()
         """
+
+        if not self.__class__.config_filepath.parent.exists():
+            """
+            Creates the parent folder for config_filepath to
+            prevent FileError when opening
+            """
+            self.__class__.config_filepath.parent.mkdir()
+
         with open(self.__class__.config_filepath, "w") as file:
             # CleverDict.get_aliases finds attributes created after __init__:
             fields_dict = {
