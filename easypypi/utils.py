@@ -47,5 +47,5 @@ REPLACEMENTS = [
 SG_KWARGS = {
     "title": "easyPyPI",
     "keep_on_top": True,
-    "icon": Path(__file__).parent.parent / "easypypi.ico",
+    "icon": Path(__file__).parent / "easypypi.ico",
 }

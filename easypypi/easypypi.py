@@ -1,5 +1,6 @@
 from .classifiers import CLASSIFIER_LIST
 from .licenses import LICENSE_NAMES
+from .licenses import LICENSES
 from .shared_functions import create_file
 from .shared_functions import update_line
 from .utils import GROUP_CLASSIFIERS
@@ -572,7 +573,7 @@ class Package(CleverDict):
                     if choice == "config.json":
                         choice = self.config_filepath
                     if choice == "easyPyPI README":
-                        choice = self.easypypi_dirpath.with_name("README.md")
+                        choice = r"https://github.com/PFython/easypypi/blob/main/README.md"
                     webbrowser.open(str(choice))
             if event == "Coffee":
                 webbrowser.open("https://www.buymeacoffee.com/pfython")
@@ -720,7 +721,7 @@ class Package(CleverDict):
         \package_name\package_name
         """
         files = sg.popup_get_file(
-            "Please select any other files to copy to new project folder",
+            f"Please select any other files or 'package data' to copy to the new folder:\n\n{self.setup_filepath.with_name(self.name)}\n",
             **SG_KWARGS,
             default_path="",
             multiple_files=True,
@@ -817,7 +818,7 @@ class Package(CleverDict):
             print("   - Using an existing version number.  Try a new version number?")
         else:
             url = "https://" if account == "PyPI" else "https://test."
-            webbrowser.open(url + f"pypi.org/project/{self.name}")
+            webbrowser.open(f"{url}pypi.org/project/{self.name}/{self.version}")
             response = sg.popup_yes_no(
                 "Fantastic! Your package should now be available in your webbrowser, "
                 "although you might need to wait a few minutes before it registers as the 'latest' version.\n\n"
@@ -831,17 +832,18 @@ class Package(CleverDict):
         """ Auto-install from pip using latest version and account. """
         url = "https://" if account == "PyPI" else "https://test."
         print()
-        command = f'cmd /c "python -m pip install -i {url}pypi.org/simple/ {self.name}=={self.version}"'
-        if not os.system(command):
+        command = f"python -m pip install -i {url}pypi.org/simple/ {self.name}=={self.version}"
+        if not os.system(f'cmd /c "{command}"'):
             # A return value of 1 indicates an error, 0 indicates success
             print(
                 f"\n ⓘ  You can view your package's details using 'pip show {self.name}':\n"
             )
             os.system(f'cmd /c "pip show {self.name}"')
+            print()
         else:
             print("\n ⚠  Installation failed.  Perhaps try again shortly?")
-            print(f"    {command}\n    or...")
-            print(f"    >>> package.pip_install({account})")
+            print(f"\n    {command}\n\n    or...")
+            print(f"    >>> package.pip_install('{account}')\n")
 
     def publish_to_github(self):
         """ Uploads initial package to Github using Git"""
@@ -978,22 +980,3 @@ def prompt_with_choices(group, choices, selected_choices):
         if event is None or event == "Cancel":
             choices_window.close()
             return False
-
-
-def load_licenses_json():
-    """
-    Loads license metadata from licenses.json and converts each license to
-    a cleverdict.
-
-    Returns: List of 8 cleverdicts, one for each main license type
-    """
-    license_dict_path = Path(__file__).parent / "licenses.json"
-    if license_dict_path.is_file():
-        with license_dict_path.open("r") as file:
-            license_dict = json.load(file)
-        return [CleverDict(x) for x in license_dict]
-    else:
-        return []
-
-
-LICENSES = load_licenses_json()
