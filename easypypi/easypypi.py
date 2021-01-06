@@ -979,6 +979,7 @@ def prompt_with_choices(group, choices, selected_choices):
             choices_window.close()
             return False
 
+
 def load_licenses_json():
     """
     Loads license metadata from licenses.json and converts each license to
@@ -993,5 +994,6 @@ def load_licenses_json():
         return [CleverDict(x) for x in license_dict]
     else:
         return []
+
 
 LICENSES = load_licenses_json()

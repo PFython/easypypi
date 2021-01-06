@@ -23,6 +23,7 @@ def fetch_license_data():
     licenses = [requests.get(api_link).json() for api_link in api_links.values()]
     return licenses
 
+
 LICENSE_NAMES = {
     "MIT": "MIT License",
     "GPL-3.0": "GNU General Public License v3 (GPLv3)",
