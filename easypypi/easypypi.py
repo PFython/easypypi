@@ -573,7 +573,9 @@ class Package(CleverDict):
                     if choice == "config.json":
                         choice = self.config_filepath
                     if choice == "easyPyPI README":
-                        choice = r"https://github.com/PFython/easypypi/blob/main/README.md"
+                        choice = (
+                            r"https://github.com/PFython/easypypi/blob/main/README.md"
+                        )
                     webbrowser.open(str(choice))
             if event == "Coffee":
                 webbrowser.open("https://www.buymeacoffee.com/pfython")

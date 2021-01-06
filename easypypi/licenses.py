@@ -23,6 +23,7 @@ def fetch_license_data():
     licenses = [requests.get(api_link).json() for api_link in api_links.values()]
     return licenses
 
+
 def load_licenses_json():
     """
     Loads license metadata from licenses.json and converts each license to
@@ -37,6 +38,7 @@ def load_licenses_json():
         return [CleverDict(x) for x in license_dict]
     else:
         return []
+
 
 LICENSES = load_licenses_json()
 
