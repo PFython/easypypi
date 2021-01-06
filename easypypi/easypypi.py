@@ -822,8 +822,7 @@ class Package(CleverDict):
             print("   - An authentication issue.  Check your username and password?")
             print("   - Using an existing version number.  Try a new version number?")
         else:
-            url = "https://"
-            url += "" if account == "PyPI" else "test."
+            url = "https://" if account == "PyPI" else "https://test."
             webbrowser.open(url + f"pypi.org/project/{self.name}")
             response = sg.popup_yes_no(
                 "Fantastic! Your package should now be available in your webbrowser, "
@@ -832,15 +831,23 @@ class Package(CleverDict):
                 **SG_KWARGS,
             )
             if response == "Yes":
-                print()
-                if not os.system(
-                    f'cmd /c "python -m pip install -i {url}pypi.org/simple/ {self.name}=={self.version}"'
-                ):
-                    # A return value of 1 indicates an error, 0 indicates success
-                    print(
-                        f"\n ⓘ  You can view your package's details using 'pip show {self.name}':\n"
-                    )
-                    os.system(f'cmd /c "pip show {self.name}"')
+                self.pip_install(account)
+
+    def pip_install(self, account):
+        """ Auto-install from pip using latest version and account. """
+        url = "https://" if account == "PyPI" else "https://test."
+        print()
+        command = f'cmd /c "python -m pip install -i {url}pypi.org/simple/ {self.name}=={self.version}"'
+        if not os.system(command):
+            # A return value of 1 indicates an error, 0 indicates success
+            print(
+                f"\n ⓘ  You can view your package's details using 'pip show {self.name}':\n"
+            )
+            os.system(f'cmd /c "pip show {self.name}"')
+        else:
+            print("\n ⚠  Installation failed.  Perhaps try again shortly?")
+            print(f"    {command}\n    or...")
+            print(f"    >>> package.pip_install({account})")
 
     def publish_to_github(self):
         """ Uploads initial package to Github using Git"""

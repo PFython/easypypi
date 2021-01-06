@@ -8,7 +8,7 @@ from setuptools import setup
 HERE = Path(__file__).parent
 NAME = "easypypi"
 GITHUB_USERNAME = "Pfython"
-VERSION = "2.0.4a1"
+VERSION = "2.0.4a2"
 DESCRIPTION = "easyPyPI is THE easiest and quickest way to publish your Python creations on the Python Package Index (PyPI) so other people can just `pip install your_script`."
 LICENSE = "MIT License"
 AUTHOR = "Peter Fison"
