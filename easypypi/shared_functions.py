@@ -8,18 +8,17 @@ import os
 
 def create_file(filepath, content, **kwargs):
     """
-    Create a backup if required, then create new file using writelines
+    Create a new file using writelines, and backup if filepath==setup.py.
     Returns "file exists" if filepath already exists and overwrite = False
     """
     if isinstance(content, str):
         content = content.splitlines(True)  # keep line breaks
     if filepath.is_file():
         if kwargs.get("overwrite"):
-            backup = filepath.with_name(f"{filepath.stem} - old.py")
-            if backup.is_file():
-                os.remove(backup)
-            filepath.rename(backup)
-            print(f"\n✓ Renamed {filepath.name} to:\n  {backup.name}")
+            if filepath.name == "setup.py":
+                backup = filepath.with_name(f"{filepath.stem} - old.py")
+                filepath.replace(backup)
+                print(f"\n✓ Renamed {filepath.name} to:\n  {backup.name}")
             filepath.touch()  # Create empty file to append lines to
         else:
             print(f"\nⓘ Existing file preserved:\n  {filepath}")

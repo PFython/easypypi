@@ -550,7 +550,7 @@ class Package(CleverDict):
                     self.upload_with_twine(values["3) Publish"])
             if event == "Create Accounts":
                 account = values["Create Accounts"].replace("Register for ", "")
-                self.register_accounts(account.replace(" ","_"))
+                self.register_accounts(account.replace(" ", "_"))
                 window["Github_username"].update(value=self.get("Github_username"))
                 window["Test_PyPI_username"].update(
                     value=self.get("Test_PyPI_username")
@@ -605,10 +605,15 @@ class Package(CleverDict):
         self.license_name_pypi = self.license_name_pypi[0].split(":: ")[-1]
         for spdx_id, pypi_name in LICENSE_NAMES.items():
             if self.license_name_pypi.endswith(pypi_name):
-                self.license_name_github = [
-                    x.name for x in LICENSES if x.spdx_id == spdx_id
-                ][0]
-                break
+                try:
+                    self.license_name_github = [
+                        x.name for x in LICENSES if x.spdx_id == spdx_id
+                    ][0]
+                    break
+                except:
+                    print(LICENSE_NAMES)
+                    print(LICENSES)
+                    print(LICENSES_FILENAME)
         self.create_license()
         self.update_script_lines()
 
@@ -829,7 +834,7 @@ class Package(CleverDict):
             if response == "Yes":
                 print()
                 if not os.system(
-                    f'cmd /c "python -m pip install -i https://test.pypi.org/simple/ {self.name} --upgrade"'
+                    f'cmd /c "python -m pip install -i {url}pypi.org/simple/ {self.name}=={self.version}"'
                 ):
                     # A return value of 1 indicates an error, 0 indicates success
                     print(

@@ -24,6 +24,9 @@ def fetch_license_data():
     return licenses
 
 
+LICENSES_FILENAME = str(Path(__file__).parent / "licenses.json")
+
+
 def load_licenses_json():
     """
     Loads license metadata from licenses.json and converts each license to
@@ -40,8 +43,8 @@ def load_licenses_json():
         return []
 
 
-LICENSES_FILENAME = str(Path(__file__).parent / "licenses.json")
 LICENSES = load_licenses_json()
+
 LICENSE_NAMES = {
     "MIT": "MIT License",
     "GPL-3.0": "GNU General Public License v3 (GPLv3)",
