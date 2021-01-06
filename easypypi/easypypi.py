@@ -50,12 +50,6 @@ class Package(CleverDict):
         super().__init__(**kwargs)
         if name:
             self.name = name
-        else:
-            self.name = sg.popup_get_text(
-                "Please enter a name for this package (all lowercase, underscores if needed):",
-                default_text=self.get("name") or "as_easy_as_pie",
-                **SG_KWARGS,
-            )
         self.load_defaults()
         print(
             f"\n ⓘ  easyPyPI template files are located in:\n  {self.__class__.easypypi_dirpath}",
@@ -116,8 +110,19 @@ class Package(CleverDict):
         Entry point for loading default Package values as attributes.
         Choose between last updated JSON config file, and setup.py if it exists.
         """
+        name = self.get('name')
         self.create_skeleton_config_file()
         self.load_defaults_from_config_file()
+        if not name:
+            # i.e. no name previously saved in config.json and none supplied
+            self.name = sg.popup_get_text(
+                "Please enter a name for this package (all lowercase, underscores if needed):",
+                default_text=self.get("name") or "as_easy_as_pie",
+                **SG_KWARGS,
+            )
+        elif name:pythonfrom easypypi.easypypi import *package=Package()
+            # i.e. name supplied -> use instead of previously saved name
+            self.name = name
         self.create_folder_structure()
         if self.setup_filepath.is_file() and self.setup_filepath.stat().st_size:
             # If setup.py exists & isn't empty, overwrite default values
