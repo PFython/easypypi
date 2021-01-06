@@ -45,5 +45,5 @@ if __name__ == "__main__":
         keywords=comma_split(KEYWORDS),
         install_requires=comma_split(REQUIREMENTS),
         classifiers=comma_split(CLASSIFIERS),
-        package_data={"": ["README.md", "*.png", "*.ico"], NAME: ["*.*"]},
+        package_data={"": ["*.md", "*.json", "*.png", "*.ico"], NAME: ["*.*"]},
     )
