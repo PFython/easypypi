@@ -1,6 +1,5 @@
 from .classifiers import CLASSIFIER_LIST
 from .licenses import LICENSE_NAMES
-from .licenses import LICENSES
 from .shared_functions import create_file
 from .shared_functions import update_line
 from .utils import GROUP_CLASSIFIERS
@@ -605,15 +604,10 @@ class Package(CleverDict):
         self.license_name_pypi = self.license_name_pypi[0].split(":: ")[-1]
         for spdx_id, pypi_name in LICENSE_NAMES.items():
             if self.license_name_pypi.endswith(pypi_name):
-                try:
-                    self.license_name_github = [
-                        x.name for x in LICENSES if x.spdx_id == spdx_id
-                    ][0]
-                    break
-                except:
-                    print(LICENSE_NAMES)
-                    print(LICENSES)
-                    print(LICENSES_FILENAME)
+                self.license_name_github = [
+                    x.name for x in LICENSES if x.spdx_id == spdx_id
+                ][0]
+                break
         self.create_license()
         self.update_script_lines()
 
@@ -984,3 +978,20 @@ def prompt_with_choices(group, choices, selected_choices):
         if event is None or event == "Cancel":
             choices_window.close()
             return False
+
+def load_licenses_json():
+    """
+    Loads license metadata from licenses.json and converts each license to
+    a cleverdict.
+
+    Returns: List of 8 cleverdicts, one for each main license type
+    """
+    license_dict_path = Path(__file__).parent / "licenses.json"
+    if license_dict_path.is_file():
+        with license_dict_path.open("r") as file:
+            license_dict = json.load(file)
+        return [CleverDict(x) for x in license_dict]
+    else:
+        return []
+
+LICENSES = load_licenses_json()

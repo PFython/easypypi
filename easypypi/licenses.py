@@ -23,28 +23,6 @@ def fetch_license_data():
     licenses = [requests.get(api_link).json() for api_link in api_links.values()]
     return licenses
 
-
-LICENSES_FILENAME = str(Path(__file__).parent / "licenses.json")
-
-
-def load_licenses_json():
-    """
-    Loads license metadata from licenses.json and converts each license to
-    a cleverdict.
-
-    Returns: List of 8 cleverdicts, one for each main license type
-    """
-    license_dict_path = Path(LICENSES_FILENAME)
-    if license_dict_path.is_file():
-        with license_dict_path.open("r") as file:
-            license_dict = json.load(file)
-        return [CleverDict(x) for x in license_dict]
-    else:
-        return []
-
-
-LICENSES = load_licenses_json()
-
 LICENSE_NAMES = {
     "MIT": "MIT License",
     "GPL-3.0": "GNU General Public License v3 (GPLv3)",
@@ -65,6 +43,7 @@ if __name__ == "__main__":
 
     licenses.json is imported by the main module easypypi.py
     """
+    print("\n>   Executing: licenses.py\n")
     HERE = Path(LICENSES_FILENAME).parent
     file = Path(LICENSES_FILENAME)
     valid_json = True
