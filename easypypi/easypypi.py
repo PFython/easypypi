@@ -120,7 +120,7 @@ class Package(CleverDict):
                 default_text=self.get("name") or "as_easy_as_pie",
                 **SG_KWARGS,
             )
-        elif name:pythonfrom easypypi.easypypi import *package=Package()
+        elif name:
             # i.e. name supplied -> use instead of previously saved name
             self.name = name
         self.create_folder_structure()
