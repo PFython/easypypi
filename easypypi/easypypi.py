@@ -318,11 +318,13 @@ class Package(CleverDict):
         return Path(self.setup_filepath_str)
 
     def get_default_filepath(self):
-        path = Path(self.get("setup_filepath_str") or Path().cwd())
         # Default path should be the parent of self.name and not include it
-        while path.parts[-1] in [self.name, "setup.py"]:
-            path = Path().joinpath(*path.parts[:-1])
-        return str(path)
+        path = self.get("setup_filepath_str")
+        if path:
+            return str(Path(self.get("setup_filepath_str")).parent.parent)
+        else:
+            return os.getcwd()
+
 
     def get_default_version(self):
         return "0.0.1a1"
