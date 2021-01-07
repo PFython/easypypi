@@ -8,7 +8,7 @@ from setuptools import setup
 HERE = Path(__file__).parent
 NAME = "easypypi"
 GITHUB_USERNAME = "Pfython"
-VERSION = "2.0.4a11"
+VERSION = "2.0.4"
 DESCRIPTION = "By FAR the easiest and quickest way to publish your Python creations on PyPI so other people can just `pip install your_script`."
 LICENSE = "MIT License"
 AUTHOR = "Peter Fison"
@@ -45,5 +45,5 @@ if __name__ == "__main__":
         keywords=comma_split(KEYWORDS),
         install_requires=comma_split(REQUIREMENTS),
         classifiers=comma_split(CLASSIFIERS),
-        package_data={"": ["README.md", "*.png", "*.ico"], NAME: ["*.*"]},
+        package_data={"": ["*.md", "*.json", "*.png", "*.ico"], NAME: ["*.*"]},
     )
