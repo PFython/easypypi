@@ -1,6 +1,9 @@
 # `{self.name}`
 
 <p align="center">
+    <a href="https://pypi.python.org/pypi/{self.name}"><img alt="PyPI" src="https://img.shields.io/pypi/v/{self.name}.svg"></a>
+	<a href="https://pypi.python.org/pypi/{self.name}"><img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/{self.name}.svg"></a>
+    <a href="https://pepy.tech/project/{self.name}"><img alt="Downloads" src="https://pepy.tech/badge/{self.name}"></a>
     <a href="#Contribution" title="Contributions are welcome"><img src="https://img.shields.io/badge/contributions-welcome-green.svg"></a>
     <a href="https://github.com/{self.Github_username}/{self.name}/releases" title="{self.name}"><img src="https://img.shields.io/github/release-date/{self.Github_username}/{self.name}?color=green&label=updated"></a>
     <a href="https://twitter.com/@{self.Github_username}" title="Follow us on Twitter"><img src="https://img.shields.io/twitter/follow/{self.Github_username}.svg?style=social&label=Follow"></a>
