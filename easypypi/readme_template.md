@@ -6,6 +6,9 @@
     <a href="https://pepy.tech/project/{self.name}"><img alt="Downloads" src="https://pepy.tech/badge/{self.name}"></a>
     <a href="#Contribution" title="Contributions are welcome"><img src="https://img.shields.io/badge/contributions-welcome-green.svg"></a>
     <a href="https://github.com/{self.Github_username}/{self.name}/releases" title="{self.name}"><img src="https://img.shields.io/github/release-date/{self.Github_username}/{self.name}?color=green&label=updated"></a>
+    <img alt="PyPI - License" src="https://img.shields.io/pypi/l/{self.name}">
+    <img alt="PyPI - Status" src="https://img.shields.io/pypi/status/{self.name}">
+    <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/{self.Github_username}/{self.name}">
     <a href="https://twitter.com/@{self.Github_username}" title="Follow us on Twitter"><img src="https://img.shields.io/twitter/follow/{self.Github_username}.svg?style=social&label=Follow"></a>
 </p>
 
