@@ -19,7 +19,8 @@ def create_file(filepath, content, **kwargs):
                 backup = filepath.with_name(f"{filepath.stem} - old.py")
                 filepath.replace(backup)
                 print(f"\n✓ Renamed {filepath.name} to:\n  {backup.name}")
-            filepath.touch()  # Create empty file to append lines to
+            else:
+                os.remove(filepath)
         else:
             print(f"\nⓘ Existing file preserved:\n  {filepath}")
             return "file exists"

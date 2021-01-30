@@ -68,7 +68,7 @@ class Package(CleverDict):
         output = self.info(as_str=True)
         return output.replace("CleverDict", type(self).__name__, 1)
 
-    def save(self, key=None, value=None):
+    def save(self, name=None, value=None):
         """
         This method is called by CleverDict whenever a value or attribute
         changes.  Used here to update the config file automatically.
@@ -96,8 +96,8 @@ class Package(CleverDict):
                 if "password" not in x.lower()
             }
             json.dump(fields_dict, file, indent=4)
-        if key:
-            if "password" in key.lower():
+        if name:
+            if "password" in name.lower():
                 location = "memory but NOT saved to file"
             else:
                 location = self.__class__.config_filepath
@@ -771,6 +771,7 @@ class Package(CleverDict):
         sfp = self.setup_filepath.parent
         # setup.py and LICENSE can be be overwritten as they're most likely to
         # be changed by user after publishing, and no code changes will be lost:
+        print(self.license_text)
         create_file(sfp / "LICENSE", self.license_text, overwrite=True)
         create_file(self.setup_filepath, self.script_lines, overwrite=True)
         # Other files are just bare-bones initially, imported from templates:
